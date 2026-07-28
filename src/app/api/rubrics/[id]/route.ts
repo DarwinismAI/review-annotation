@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { eq, inArray, type ExtractTablesWithRelations } from "drizzle-orm";
+import { and, eq, gte, inArray, type ExtractTablesWithRelations } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
 import * as schema from "@/db/schema";
 import { db } from "@/db/client";
-import { rubricCriteria, rubrics } from "@/db/schema";
+import { articles, assignments, batches, rubricCriteria, rubrics } from "@/db/schema";
 import { reviewScores } from "@/db/reviews";
 import { requireAdmin } from "@/lib/auth-middleware";
 import { isDomainKey } from "@/lib/labels";
@@ -35,6 +35,26 @@ type RubricTransaction = PgTransaction<
   ExtractTablesWithRelations<typeof schema>
 >;
 type RubricCriterionId = Pick<typeof rubricCriteria.$inferSelect, "id">;
+
+function metricInUseResponse() {
+  return NextResponse.json(
+    {
+      error: {
+        code: "METRIC_IN_USE",
+        message: "Metric đã được áp dụng và không thể thay đổi hoặc xóa",
+      },
+    },
+    { status: 409 },
+  );
+}
+
+function isReviewScoreCriterionConstraint(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const databaseError = error as { code?: string; constraint_name?: string };
+  return databaseError.code === "23503"
+    && databaseError.constraint_name === "review_scores_criterion_id_rubric_criteria_id_fk";
+}
 
 function normalizeMetricInput(body: MetricBody) {
   const metric = Array.isArray(body.scale)
@@ -124,6 +144,23 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
     if (!normalized.ok) {
       return NextResponse.json({ error: { code: "BAD_REQUEST", message: normalized.message } }, { status: 400 });
     }
+  }
+
+  const [applicableAssignment] = await db
+    .select({ id: assignments.id })
+    .from(assignments)
+    .innerJoin(articles, eq(assignments.articleId, articles.id))
+    .innerJoin(batches, eq(articles.batchId, batches.id))
+    .where(
+      and(
+        eq(batches.domain, rubric.domain),
+        gte(assignments.createdAt, rubric.createdAt),
+      ),
+    )
+    .limit(1);
+
+  if (applicableAssignment) {
+    return metricInUseResponse();
   }
 
   const now = Date.now();
@@ -221,22 +258,21 @@ export const DELETE = requireAdmin(async (_req: NextRequest, _session, context) 
       .limit(1);
 
     if (referencedScore) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "METRIC_IN_USE",
-            message: "Metric đã có dữ liệu chấm và không thể xóa",
-          },
-        },
-        { status: 409 },
-      );
+      return metricInUseResponse();
     }
   }
 
-  await db.transaction(async (tx: RubricTransaction) => {
-    await tx.delete(rubricCriteria).where(eq(rubricCriteria.rubricId, id));
-    await tx.delete(rubrics).where(eq(rubrics.id, id));
-  });
+  try {
+    await db.transaction(async (tx: RubricTransaction) => {
+      await tx.delete(rubricCriteria).where(eq(rubricCriteria.rubricId, id));
+      await tx.delete(rubrics).where(eq(rubrics.id, id));
+    });
+  } catch (error) {
+    if (isReviewScoreCriterionConstraint(error)) {
+      return metricInUseResponse();
+    }
+    throw error;
+  }
 
   return NextResponse.json({ data: { id } });
 });
