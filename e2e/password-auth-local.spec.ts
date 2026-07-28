@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { isLocalDevelopment } from "../src/lib/local-dev";
 
 const localAuthEnabled = process.env.AUTH_TEST_MODE === "local";
@@ -159,6 +160,53 @@ test("seed script rejects missing mutation opt-in before configuration or I/O", 
   expect(result.output).toContain("ALLOW_TEST_DATA_MUTATION=1");
   expect(result.output).not.toContain("DATABASE_URL required");
   expect(result.output).not.toContain("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY required");
+});
+
+test("base seed rejects missing mutation opt-in before configuration or I/O", () => {
+  const result = runGuardedCommand(
+    "pnpm",
+    ["tsx", "scripts/seed.ts"],
+    {
+      ALLOW_SEED_MUTATION: undefined,
+      DATABASE_URL: undefined,
+      SUPABASE_URL: undefined,
+      SUPABASE_SERVICE_ROLE_KEY: undefined,
+      SEED_ADMIN_PASSWORD: undefined,
+      SEED_EXPERT_PASSWORD: undefined,
+    }
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("ALLOW_SEED_MUTATION=1");
+  expect(result.output).not.toContain("DATABASE_URL is required");
+  expect(result.output).not.toContain("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+});
+
+test("base seed requires explicit admin and expert passwords without defaults", () => {
+  const result = runGuardedCommand(
+    "pnpm",
+    ["tsx", "scripts/seed.ts"],
+    {
+      ALLOW_SEED_MUTATION: "1",
+      DATABASE_URL: undefined,
+      SUPABASE_URL: undefined,
+      SUPABASE_SERVICE_ROLE_KEY: undefined,
+      SEED_ADMIN_PASSWORD: undefined,
+      SEED_EXPERT_PASSWORD: undefined,
+    }
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("SEED_ADMIN_PASSWORD");
+  expect(result.output).toContain("SEED_EXPERT_PASSWORD");
+  expect(result.output).not.toContain("DATABASE_URL is required");
+
+  const source = readFileSync("scripts/seed.ts", "utf8");
+  expect(source).not.toContain("Password123!");
+  expect(source).not.toContain("updateUserById");
+  expect(source).toContain("if (existing) return existing.id;");
+  expect(source).toContain(".update(schema.profiles)");
+  expect(source).toContain(".set({ role: user.role, name: user.name");
 });
 
 test("production upload script rejects missing mutation opt-in before file or network access", () => {

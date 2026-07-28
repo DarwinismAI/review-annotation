@@ -3,6 +3,9 @@
  * Creates users via admin API (trigger auto-creates profiles rows).
  * Run: pnpm seed:local  OR  npx tsx scripts/seed.ts
  * Safe to re-run: idempotent via email lookup.
+ *
+ * Requires ALLOW_SEED_MUTATION=1, SEED_ADMIN_PASSWORD, and
+ * SEED_EXPERT_PASSWORD.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -35,8 +38,7 @@ type SupabaseAdmin = ReturnType<typeof createSupabaseAdmin>;
 async function upsertAuthUser(
   supa: SupabaseAdmin,
   email: string,
-  name: string,
-  role: "admin" | "expert"
+  password: string
 ): Promise<string> {
   const { data: listData, error: listErr } = await supa.auth.admin.listUsers({ perPage: 1000 });
   if (listErr) throw listErr;
@@ -47,8 +49,7 @@ async function upsertAuthUser(
   const { data, error } = await supa.auth.admin.createUser({
     email,
     email_confirm: true,
-    password: "Password123!",          // default dev password; change in production
-    user_metadata: { role, name },     // trigger reads role from raw_user_meta_data
+    password,
   });
   if (error) throw error;
   return data.user!.id;
@@ -57,6 +58,16 @@ async function upsertAuthUser(
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  if (process.env.ALLOW_SEED_MUTATION !== "1") {
+    throw new Error("Set ALLOW_SEED_MUTATION=1 to seed data");
+  }
+
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const expertPassword = process.env.SEED_EXPERT_PASSWORD;
+  if (!adminPassword || !expertPassword) {
+    throw new Error("SEED_ADMIN_PASSWORD and SEED_EXPERT_PASSWORD are required");
+  }
+
   const supa = createSupabaseAdmin();
   const { db, close } = createDb();
   const nowMs = Date.now();
@@ -64,12 +75,49 @@ async function main() {
   console.log("→ Seeding users via Supabase admin API...");
 
   // 1. Users
-  const adminId = await upsertAuthUser(supa, "admin@example.com", "Quản trị viên", "admin");
-  console.log(`  · admin: ${adminId}`);
+  const users = [
+    {
+      email: "admin@example.com",
+      name: "Quản trị viên",
+      role: "admin" as const,
+      password: adminPassword,
+    },
+    {
+      email: "lan@example.com",
+      name: "Nguyễn Thị Lan",
+      role: "expert" as const,
+      password: expertPassword,
+    },
+    {
+      email: "minh@example.com",
+      name: "Trần Văn Minh",
+      role: "expert" as const,
+      password: expertPassword,
+    },
+    {
+      email: "huong@example.com",
+      name: "Lê Thị Hương",
+      role: "expert" as const,
+      password: expertPassword,
+    },
+  ];
+  const userIds = new Map<string, string>();
 
-  const lanId   = await upsertAuthUser(supa, "lan@example.com",   "Nguyễn Thị Lan",  "expert");
-  const minhId  = await upsertAuthUser(supa, "minh@example.com",  "Trần Văn Minh",   "expert");
-  const huongId = await upsertAuthUser(supa, "huong@example.com", "Lê Thị Hương",    "expert");
+  for (const user of users) {
+    const userId = await upsertAuthUser(supa, user.email, user.password);
+    await db
+      .update(schema.profiles)
+      .set({ role: user.role, name: user.name, updatedAt: new Date() })
+      .where(eq(schema.profiles.id, userId));
+    userIds.set(user.email, userId);
+  }
+
+  const adminId = userIds.get("admin@example.com")!;
+  const lanId = userIds.get("lan@example.com")!;
+  const minhId = userIds.get("minh@example.com")!;
+  const huongId = userIds.get("huong@example.com")!;
+
+  console.log(`  · admin: ${adminId}`);
   console.log(`  · 3 experts created/reused`);
 
   // 2. Expert profiles (idempotent via userId unique constraint)
