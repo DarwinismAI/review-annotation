@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { assignments, articleReviewSession } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -15,7 +15,7 @@ import { closeOpenSessions } from "@/lib/review-session-close";
  * (closed_reason = 'reopen', end_at clamped to max 90 min from start_at).
  * Returns { sessionId }.
  */
-export const POST = requireExpert(async (req: NextRequest, session) => {
+export const POST = requireAnnotator(async (req: NextRequest, session) => {
   let body: { assignmentId?: string };
   try {
     body = await req.json();

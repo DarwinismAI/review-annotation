@@ -339,7 +339,7 @@ export default function ReviewPage({
             return;
           }
         } catch {
-          // Fall through to the expert review loader.
+          // Fall through to the annotator review loader.
         }
 
         const res = await fetch(`/api/articles/${id}/review`);
@@ -608,7 +608,7 @@ export default function ReviewPage({
         return;
       }
       showToast("Hoàn thành đánh giá! Đang gửi...");
-      setTimeout(() => (window.location.href = "/expert/articles"), 2000);
+      setTimeout(() => (window.location.href = "/annotator/articles"), 2000);
     } catch {
       setCompleting(false);
       showToast("Đã xảy ra lỗi, vui lòng thử lại");
@@ -654,7 +654,7 @@ export default function ReviewPage({
         style={{ height: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}
       >
         <p className="text-red-500 text-sm">{error ?? "Không tìm thấy bài viết"}</p>
-        <Link href="/expert/articles" className="text-blue-600 text-sm mt-3 hover:underline">
+        <Link href="/annotator/articles" className="text-blue-600 text-sm mt-3 hover:underline">
           Quay lại danh sách
         </Link>
       </div>
@@ -667,7 +667,7 @@ export default function ReviewPage({
       <header className="bg-slate-900 h-14 px-6 flex items-center gap-3 z-20 shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <Link
-            href="/expert/articles"
+            href="/annotator/articles"
             aria-label="Quay lại danh sách"
             className="text-slate-400 hover:text-slate-200 transition-colors shrink-0"
           >
@@ -680,7 +680,7 @@ export default function ReviewPage({
               />
             </svg>
           </Link>
-          <span className="text-white font-bold text-base shrink-0">Expert Review</span>
+          <span className="text-white font-bold text-base shrink-0">Review Annotation</span>
           <span className="text-slate-600 shrink-0">/</span>
           <h1
             id="header-title"
@@ -1067,7 +1067,7 @@ export default function ReviewPage({
             sessionStorage.setItem("compensation-survey-skipped", "1");
           }
           setShowSurvey(false);
-          window.location.href = "/expert/articles";
+          window.location.href = "/annotator/articles";
         }}
       />
 

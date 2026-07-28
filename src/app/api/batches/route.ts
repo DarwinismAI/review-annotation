@@ -161,7 +161,7 @@ export const POST = requireAdmin(async (req, session) => {
     );
   }
 
-  // Assignment mode (manual = admin pick experts later, broadcast = self-claim).
+  // Assignment mode (manual = admin pick annotators later, broadcast = self-claim).
   const assignmentMode = body.assignmentMode ?? "manual";
   if (!["manual", "broadcast"].includes(assignmentMode)) {
     return NextResponse.json(

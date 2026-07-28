@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { assignments, articleComments } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
@@ -7,10 +7,10 @@ import { and, eq, desc } from "drizzle-orm";
 /**
  * GET /api/articles/[id]/comments
  *
- * Returns all inline comments for an article scoped to the calling expert's assignment.
- * Auth: expert only. Expert must have an open assignment for this article.
+ * Returns all inline comments for an article scoped to the calling annotator's assignment.
+ * Auth: annotator only. Expert must have an open assignment for this article.
  */
-export const GET = requireExpert(async (_req: NextRequest, session, context) => {
+export const GET = requireAnnotator(async (_req: NextRequest, session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {
     return NextResponse.json(

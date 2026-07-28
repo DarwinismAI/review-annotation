@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import {
   articles,
@@ -26,7 +26,7 @@ import { domainForSubDomain, subDomainForMedicalMicroDomain, type DomainKey } fr
  * 3. Caller's expert_domains overlaps batch.domain
  * 4. Insert assignment (UNIQUE catches the race) + flip article.status → assigned
  */
-export const POST = requireExpert(async (_req, session, context) => {
+export const POST = requireAnnotator(async (_req, session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {
     return NextResponse.json(

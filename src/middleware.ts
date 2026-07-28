@@ -9,7 +9,7 @@ const PUBLIC_AUTH_PREFIXES = ["/login"];
 
 /**
  * Edge middleware — refreshes the Supabase session cookie on every request to
- * /admin/** and /expert/**, then redirects to /login if there's no valid user.
+ * /admin/** and /annotator/**, then redirects to /login if there's no valid user.
  * The role check happens server-side in the segment layouts.
  */
 export async function middleware(req: NextRequest) {
@@ -21,8 +21,8 @@ export async function middleware(req: NextRequest) {
   }
 
   const isAdmin = pathname.startsWith("/admin");
-  const isExpert = pathname.startsWith("/expert");
-  if (!isAdmin && !isExpert) return NextResponse.next();
+  const isAnnotator = pathname.startsWith("/annotator");
+  if (!isAdmin && !isAnnotator) return NextResponse.next();
 
   // ── Local SQLite dev bypass: skip Supabase auth check ──
   if (isLocalDevelopment()) {
@@ -50,5 +50,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/expert/:path*"],
+  matcher: ["/admin/:path*", "/annotator/:path*"],
 };

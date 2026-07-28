@@ -3,7 +3,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createSupabase } from "@supabase/supabase-js";
 import { isLocalDevelopment } from "@/lib/local-dev";
-import { isAdminRole, normalizeRole, type AppRole } from "@/lib/roles";
+import { isAdminRole, normalizeRole, resolveEffectiveRole, type AppRole } from "@/lib/roles";
 export type { AppRole } from "@/lib/roles";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL!;
@@ -64,10 +64,10 @@ export async function getSession(): Promise<AppSession | null> {
             : "00000000-0000-0000-0000-000000000001";
       const devEmail =
         cookieRole === "annotator"
-          ? "annotator@expert-review.local"
+          ? "annotator@review-annotation.local"
           : cookieRole === "superadmin"
-            ? "superadmin@expert-review.local"
-            : "admin@expert-review.local";
+            ? "superadmin@review-annotation.local"
+            : "admin@review-annotation.local";
       return { userId: devId, email: devEmail, name: null, role: cookieRole };
     }
     return null;
@@ -87,7 +87,7 @@ export async function getSession(): Promise<AppSession | null> {
     userId: user.id,
     email: profile.email,
     name: (profile.name as string | null) ?? null,
-    role: normalizeRole(profile.role) ?? "annotator",
+    role: resolveEffectiveRole(profile.role, profile.email),
   };
 }
 

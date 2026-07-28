@@ -115,7 +115,7 @@ export default function BatchDetailPage({
 
   const [batch, setBatch] = useState<BatchDetail | null>(null);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [experts, setExperts] = useState<Expert[]>([]);
+  const [annotators, setAnnotators] = useState<Expert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [extending, setExtending] = useState(false);
@@ -131,11 +131,11 @@ export default function BatchDetailPage({
 
   const loadBatchDetail = useCallback(async () => {
     try {
-      // Load batch info, articles, and active experts in parallel
+      // Load batch info, articles, and active annotators in parallel
       const [batchRes, articlesRes, expertsRes] = await Promise.all([
         fetch(`/api/batches/${id}`),
         fetch(`/api/batches/${id}/articles?limit=100`),
-        fetch("/api/experts?status=active"),
+        fetch("/api/annotators?status=active"),
       ]);
 
       if (!batchRes.ok) {
@@ -223,7 +223,7 @@ export default function BatchDetailPage({
         }))
       );
 
-      setExperts(
+      setAnnotators(
         (expertsData?.data ?? []).map((e) => ({
           id: e.userId,
           name: e.name,
@@ -325,7 +325,7 @@ export default function BatchDetailPage({
   async function submitBulkAssign() {
     if (assignableCount === 0 || bulkAssigning) return;
     const ok = window.confirm(
-      `Chia ${assignableCount} bài đang bật, chưa phân công cho chuyên gia phù hợp? Mỗi bài chỉ được gán cho một chuyên gia.`
+      `Chia ${assignableCount} bài đang bật, chưa phân công cho annotator phù hợp? Mỗi bài chỉ được gán cho một annotator.`
     );
     if (!ok) return;
 
@@ -337,7 +337,7 @@ export default function BatchDetailPage({
         body: JSON.stringify({ mode: "auto" }),
       });
       const json = (await res.json()) as {
-        data?: { summary?: { assigned: number; skipped: number; experts: number } };
+        data?: { summary?: { assigned: number; skipped: number; annotators: number } };
         error?: { message?: string };
       };
 
@@ -348,9 +348,9 @@ export default function BatchDetailPage({
 
       const summary = json.data?.summary;
       if (!summary || summary.assigned === 0) {
-        showToast(summary?.experts === 0 ? "Chưa có chuyên gia phù hợp" : "Không có bài nào cần chia");
+        showToast(summary?.annotators === 0 ? "Chưa có annotator phù hợp" : "Không có bài nào cần chia");
       } else {
-        showToast(`Đã chia ${summary.assigned} bài cho chuyên gia`);
+        showToast(`Đã chia ${summary.assigned} bài cho annotator`);
       }
       await loadBatchDetail();
     } finally {
@@ -439,7 +439,7 @@ export default function BatchDetailPage({
             <div>
               <h2 className="text-sm font-semibold text-slate-900">Phân bổ subdomain</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Dựa trên `sub_domain_id` trong payload JSON. Dùng mục này để kiểm tra trước khi chia bài cho expert.
+                Dựa trên `sub_domain_id` trong payload JSON. Dùng mục này để kiểm tra trước khi chia bài cho annotator.
               </p>
             </div>
             {subDomainSummary.unknownCount > 0 ? (
@@ -474,7 +474,7 @@ export default function BatchDetailPage({
           <div>
             <h2 className="text-base font-semibold text-slate-900">Danh sách bài</h2>
             <p className="text-sm text-slate-500">
-              Chia hàng loạt các bài đang bật, chưa phân công. Hệ thống chỉ gán mỗi bài cho một chuyên gia.
+              Chia hàng loạt các bài đang bật, chưa phân công. Hệ thống chỉ gán mỗi bài cho một annotator.
             </p>
           </div>
           {!isBroadcast ? (
@@ -484,11 +484,11 @@ export default function BatchDetailPage({
               disabled={bulkAssigning || assignableCount === 0}
               className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {bulkAssigning ? "Đang chia bài..." : "Chia bài cho chuyên gia"}
+              {bulkAssigning ? "Đang chia bài..." : "Chia bài cho annotator"}
             </button>
           ) : null}
         </div>
-        <ArticleTable articles={articles} experts={experts} batchDomain={batch.domain} />
+        <ArticleTable articles={articles} annotators={annotators} batchDomain={batch.domain} />
 
         {/* Comments & verdict aggregation for this batch */}
         <div className="mt-6">
@@ -501,7 +501,7 @@ export default function BatchDetailPage({
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Gia hạn nhận bài</h2>
               <p className="text-sm text-slate-500 mt-1">
-                Hạn mới phải muộn hơn hạn hiện tại. Sau khi cập nhật, các chuyên gia có thêm thời gian để nhận các bài còn lại.
+                Hạn mới phải muộn hơn hạn hiện tại. Sau khi cập nhật, các annotator có thêm thời gian để nhận các bài còn lại.
               </p>
             </div>
             <div>

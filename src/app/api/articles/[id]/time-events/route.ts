@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import { assignments } from "@/db/schema";
 import { timeEvents } from "@/db/time-events";
@@ -21,7 +21,7 @@ const VALID_EVENT_TYPES = new Set([
  * Batch-insert client-side time tracking events.
  * Client sends every 30s or on page unload.
  */
-export const POST = requireExpert(async (req, session, context) => {
+export const POST = requireAnnotator(async (req, session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {
     return NextResponse.json(

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import {
   articles,
@@ -42,7 +42,7 @@ function allowedScoresFromScale(scale: string | null): Set<number> {
 
 // ─── GET /api/articles/[id]/review ──────────────────────────────────────────
 
-export const GET = requireExpert(async (req, session, context) => {
+export const GET = requireAnnotator(async (req, session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {
     return NextResponse.json(
@@ -265,7 +265,7 @@ export const GET = requireExpert(async (req, session, context) => {
  * Submit a completed review. Validates all required metrics are scored.
  * For paragraph mode: one POST per paragraph with paragraphId set.
  */
-export const POST = requireExpert(async (req, session, context) => {
+export const POST = requireAnnotator(async (req, session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {
     return NextResponse.json(

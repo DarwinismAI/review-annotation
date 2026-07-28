@@ -41,7 +41,7 @@ export default function ExpertProfilePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/expert/profile")
+    fetch("/api/annotator/profile")
       .then((r) => r.json())
       .then((json) => {
         if (json.data) {
@@ -109,7 +109,7 @@ export default function ExpertProfilePage() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/expert/profile", {
+      const res = await fetch("/api/annotator/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -151,7 +151,7 @@ export default function ExpertProfilePage() {
   return (
     <>
 
-        <h1 className="text-2xl font-bold text-slate-900">Hồ sơ chuyên gia</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Hồ sơ annotator</h1>
 
         {/* Account info card */}
         <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">

@@ -89,7 +89,7 @@ export function requireSuperAdmin(handler: Handler) {
 /**
  * Wrap a route handler requiring `annotator` role.
  */
-export function requireExpert(handler: Handler) {
+export function requireAnnotator(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
     const session = await getSession(req);
     if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");

@@ -69,7 +69,7 @@ export default function ExpertArticlesPage() {
       pageSize: String(PAGE_SIZE),
     });
     if (activeDomain !== "all") params.set("domain", activeDomain);
-    fetch(`/api/expert/articles?${params}`, { cache: "no-store" })
+    fetch(`/api/annotator/articles?${params}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: ApiResponse | null) => {
         if (cancelled || !json) return;

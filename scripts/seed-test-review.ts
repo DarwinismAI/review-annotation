@@ -1,6 +1,6 @@
 /**
  * Seed a real, end-to-end reviewable batch for manual/automated QA:
- *   - test annotator user (annotator@expert-review.local) — pre-created Supabase Auth account
+ *   - test annotator user (annotator@review-annotation.local) — pre-created Supabase Auth account
  *   - one batch (`E2E Review Seed`) with 1 article backed by a valid PDF in Supabase Storage
  *   - ensures a law rubric exists (reuses `scripts/seed.ts` output when available)
  *   - creates an assignment linking the expert to the article
@@ -17,9 +17,9 @@ import { createId } from "@paralleldrive/cuid2";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as schema from "../src/db/schema";
 
-const EXPERT_EMAIL = "annotator@expert-review.local";
+const EXPERT_EMAIL = "annotator@review-annotation.local";
 const EXPERT_NAME = "Chuyên gia Test";
-const ADMIN_EMAIL = "admin@expert-review.local";
+const ADMIN_EMAIL = "admin@review-annotation.local";
 const BATCH_NAME = "E2E Review Seed";
 const ARTICLE_TITLE = "bai-viet-mau-phap-luat.pdf";
 const PAY_RATE = 150_000;

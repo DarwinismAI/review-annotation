@@ -40,7 +40,7 @@ export const POST = requireAdmin(async (req, _session, context) => {
 
   if (!expertId) {
     return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "Thiếu ID chuyên gia" } },
+      { error: { code: "BAD_REQUEST", message: "Thiếu ID annotator" } },
       { status: 400 }
     );
   }
@@ -88,7 +88,7 @@ export const POST = requireAdmin(async (req, _session, context) => {
 
   if (!profile || profile.status !== "active") {
     return NextResponse.json(
-      { error: { code: "EXPERT_NOT_ACTIVE", message: "Chuyên gia chưa kích hoạt tài khoản" } },
+      { error: { code: "EXPERT_NOT_ACTIVE", message: "Annotator chưa kích hoạt tài khoản" } },
       { status: 400 }
     );
   }
@@ -108,7 +108,7 @@ export const POST = requireAdmin(async (req, _session, context) => {
     if (expertDomainsSet.size === 0 && profile.domain) expertDomainsSet.add(profile.domain);
     if (!expertDomainsSet.has(batch.domain)) {
       return NextResponse.json(
-        { error: { code: "DOMAIN_MISMATCH", message: "Chuyên gia không thuộc lĩnh vực của bài" } },
+        { error: { code: "DOMAIN_MISMATCH", message: "Annotator không thuộc lĩnh vực của bài" } },
         { status: 400 }
       );
     }
@@ -123,7 +123,7 @@ export const POST = requireAdmin(async (req, _session, context) => {
         .filter((subId) => domainForSubDomain(subId) === batch.domain);
       if (narrowedForDomain.length > 0 && !narrowedForDomain.includes(article.subDomainId)) {
         return NextResponse.json(
-          { error: { code: "SUB_DOMAIN_MISMATCH", message: "Chuyên gia không thuộc subdomain của bài" } },
+          { error: { code: "SUB_DOMAIN_MISMATCH", message: "Annotator không thuộc subdomain của bài" } },
           { status: 400 }
         );
       }
@@ -143,7 +143,7 @@ export const POST = requireAdmin(async (req, _session, context) => {
           {
             error: {
               code: "MEDICAL_MICRO_DOMAIN_MISMATCH",
-              message: "Chuyên gia không thuộc nhánh nhỏ y tế của bài",
+              message: "Annotator không thuộc nhánh nhỏ y tế của bài",
             },
           },
           { status: 400 }

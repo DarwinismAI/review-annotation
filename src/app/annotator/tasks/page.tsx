@@ -81,7 +81,7 @@ export default function ExpertTasksPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="outline">
-                    <Link href={`/expert/tasks/${task.id}`}>Mở</Link>
+                    <Link href={`/annotator/tasks/${task.id}`}>Mở</Link>
                   </Button>
                 </TableCell>
               </TableRow>

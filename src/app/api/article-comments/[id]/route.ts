@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { articleComments } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -18,9 +18,9 @@ const patchCommentSchema = z
  * PATCH /api/article-comments/[id]
  *
  * Updates body and/or status of an inline comment.
- * Auth: expert only. Only the comment author can edit or resolve their own comment.
+ * Auth: annotator only. Only the comment author can edit or resolve their own comment.
  */
-export const PATCH = requireExpert(async (req: NextRequest, session, context) => {
+export const PATCH = requireAnnotator(async (req: NextRequest, session, context) => {
   const commentId = context?.params?.id;
   if (!commentId) {
     return NextResponse.json(

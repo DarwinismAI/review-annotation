@@ -18,22 +18,22 @@ const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/admin/datasets", label: "Datasets", icon: TableProperties },
   { href: "/admin/batches", label: "Đợt upload", icon: Package },
-  { href: "/admin/experts", label: "Annotator", icon: Users },
+  { href: "/admin/annotators", label: "Annotator", icon: Users },
   { href: "/admin/members", label: "Phân quyền", icon: Users },
   { href: "/admin/rubrics", label: "Rubric", icon: ClipboardList },
 ];
 
-const EXPERT_NAV = [
-  { href: "/expert/dashboard", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/expert/tasks", label: "Task của tôi", icon: FileText },
-  { href: "/expert/profile", label: "Hồ sơ", icon: UserCircle },
+const ANNOTATOR_NAV = [
+  { href: "/annotator/dashboard", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/annotator/tasks", label: "Task của tôi", icon: FileText },
+  { href: "/annotator/profile", label: "Hồ sơ", icon: UserCircle },
 ];
 
 
 // ─── Component ─────────────────────────────────────────────────────
 
 interface AppSidebarProps {
-  variant: "admin" | "expert";
+  variant: "admin" | "annotator";
   role?: string;
 }
 
@@ -44,17 +44,17 @@ export function AppSidebar({ variant, role }: AppSidebarProps) {
       ? ADMIN_NAV.filter((item) => item.href !== "/admin/members")
       : variant === "admin"
         ? ADMIN_NAV
-        : EXPERT_NAV;
+        : ANNOTATOR_NAV;
 
   return (
     <aside className="hidden lg:flex w-56 bg-white border-r border-slate-200 flex-col shrink-0">
       {/* Brand */}
       <div className="h-14 flex items-center px-4 border-b border-slate-200">
         <Link
-          href={variant === "admin" ? "/admin/dashboard" : "/expert/dashboard"}
+          href={variant === "admin" ? "/admin/dashboard" : "/annotator/dashboard"}
           className="text-sm font-bold text-slate-900 tracking-tight"
         >
-          Expert Review
+          Review Annotation
         </Link>
       </div>
 

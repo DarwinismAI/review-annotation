@@ -1,5 +1,5 @@
 /**
- * Seed 10 Humanity safety/compliance logs into the local SQLite Expert Review app.
+ * Seed 10 Humanity safety/compliance logs into the local SQLite Review Annotation app.
  *
  * Run:
  *   LOCAL_DB_PATH=file:./local.db pnpm exec tsx scripts/seed-humanity-local.ts /Users/haido/Downloads/humanity_output.json
@@ -92,18 +92,18 @@ async function main() {
   await db.execute({
     sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
           VALUES (?, ?, 'admin', 'Admin', ?, ?)`,
-    args: [ADMIN_ID, "admin@expert-review.local", nowIso, nowIso],
+    args: [ADMIN_ID, "admin@review-annotation.local", nowIso, nowIso],
   });
   await db.execute({
     sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
           VALUES (?, ?, 'superadmin', 'Superadmin', ?, ?)`,
-    args: ["00000000-0000-0000-0000-000000000099", "superadmin@expert-review.local", nowIso, nowIso],
+    args: ["00000000-0000-0000-0000-000000000099", "superadmin@review-annotation.local", nowIso, nowIso],
   });
 
   await db.execute({
     sql: `INSERT OR REPLACE INTO profiles (id, email, role, name, created_at, updated_at)
           VALUES (?, ?, 'annotator', ?, COALESCE((SELECT created_at FROM profiles WHERE id = ?), ?), ?)`,
-    args: [EXPERT_ID, "annotator@expert-review.local", "Annotator An toàn - Tuân thủ", EXPERT_ID, nowIso, nowIso],
+    args: [EXPERT_ID, "annotator@review-annotation.local", "Annotator An toàn - Tuân thủ", EXPERT_ID, nowIso, nowIso],
   });
 
   await db.execute({
@@ -209,7 +209,7 @@ async function main() {
 
   db.close();
   console.log(`Seeded ${items.length} logs into batch "${BATCH_NAME}" (${batchId}).`);
-  console.log("Annotator local user: annotator@expert-review.local");
+  console.log("Annotator local user: annotator@review-annotation.local");
 }
 
 main().catch((err) => {

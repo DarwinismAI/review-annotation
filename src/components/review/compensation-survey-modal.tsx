@@ -52,7 +52,7 @@ export function CompensationSurveyModal({ open, onClose }: Props) {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/expert/compensation-survey", {
+      const res = await fetch("/api/annotator/compensation-survey", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expectedRate: trimmed, unit }),

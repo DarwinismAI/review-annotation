@@ -7,7 +7,7 @@
  *     [--zip seed_data/travel.zip] \
  *     [--chunk-size 10] \
  *     [--name-prefix "Du lịch"] \
- *     [--base-url https://expert-review-app.vercel.app]
+ *     [--base-url https://annotator-review-app.vercel.app]
  *
  * Idempotent by batch name — skips chunks whose batch name already exists.
  */

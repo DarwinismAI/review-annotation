@@ -104,14 +104,11 @@ export const annotationResults = pgTable(
     metricId: text("metric_id").notNull().references(() => annotationMetrics.id, { onDelete: "cascade" }),
     value: text("value"),
     note: text("note"),
-    status: text("status").notNull().default("completed"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("annotation_results_assignment_metric_unique").on(t.assignmentId, t.metricId),
     index("annotation_results_row_metric_idx").on(t.rowId, t.metricId),
-    index("annotation_results_assignment_status_idx").on(t.assignmentId, t.status),
-    index("annotation_results_row_metric_status_idx").on(t.rowId, t.metricId, t.status),
   ],
 );

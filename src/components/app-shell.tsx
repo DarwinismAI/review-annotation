@@ -9,14 +9,14 @@ import { AppMobileNav } from "./app-mobile-nav";
 
 interface AppShellProps {
   children: React.ReactNode;
-  /** "admin" | "expert" — determines sidebar nav items + role gate. */
-  variant: "admin" | "expert";
+  /** Determines sidebar nav items and role gate. */
+  variant: "admin" | "annotator";
 }
 
 // ─── Component ─────────────────────────────────────────────────────
 
 /**
- * Shared layout shell for admin + expert pages.
+ * Shared layout shell for admin + annotator pages.
  *
  * - Server-side session check → redirects unauthenticated users to /login.
  * - Role gate → mismatched role redirects to the correct dashboard.
@@ -32,9 +32,9 @@ export async function AppShell({ children, variant }: AppShellProps) {
 
   // Role gate
   if (variant === "admin" && !isAdminRole(session.role)) {
-    redirect("/expert/dashboard");
+    redirect("/annotator/dashboard");
   }
-  if (variant === "expert" && !isAnnotatorRole(session.role)) {
+  if (variant === "annotator" && !isAnnotatorRole(session.role)) {
     redirect("/admin/dashboard");
   }
 

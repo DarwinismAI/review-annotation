@@ -19,10 +19,10 @@ import { getSignedUrl } from "@/lib/supabase-storage";
  * GET /api/admin/articles/[id]/preview
  *
  * Admin-only read-only view of an article + its metrics. Mirrors the shape of
- * /api/articles/[id]/review (used by the expert flow) but does not require an
+ * /api/articles/[id]/review (used by the annotator flow) but does not require an
  * assignment, never returns drafts, and never persists state. Used by the
  * admin "preview as expert" page so admin can see how the review form looks
- * without touching the assigned expert's data.
+ * without touching the assigned annotator's data.
  */
 export const GET = requireAdmin(async (_req, _session, context) => {
   const articleId = context?.params?.id;

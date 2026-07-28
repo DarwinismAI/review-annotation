@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { assignments, articleReviewSession } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -15,7 +15,7 @@ type CloseReason = "navigate" | "blur" | "submit";
  * end_at is clamped via LEAST(now(), start_at + interval '90 minutes') on the server.
  * Returns { ok: true }.
  */
-export const PATCH = requireExpert(async (req: NextRequest, session) => {
+export const PATCH = requireAnnotator(async (req: NextRequest, session) => {
   let body: { sessionId?: string; reason?: CloseReason };
   try {
     body = await req.json();

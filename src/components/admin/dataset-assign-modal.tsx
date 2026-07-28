@@ -38,7 +38,7 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
 
   useEffect(() => {
     if (!open) return;
-    fetch("/api/experts?status=active")
+    fetch("/api/annotators?status=active")
       .then((response) => response.json())
       .then((payload) => {
         const data = (payload.data ?? []) as ActiveAnnotator[];

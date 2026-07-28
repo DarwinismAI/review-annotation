@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics, datasetRows, datasets } from "@/db/datasets";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { projectFields, type JsonRecord } from "@/lib/datasets/import-validation";
 
 function normalizeJson(value: unknown): JsonRecord {
@@ -16,7 +16,7 @@ function normalizeJson(value: unknown): JsonRecord {
   return value && typeof value === "object" ? (value as JsonRecord) : {};
 }
 
-export const GET = requireExpert(async (_req, session) => {
+export const GET = requireAnnotator(async (_req, session) => {
   const assignments = await db
     .select({
       id: annotationAssignments.id,

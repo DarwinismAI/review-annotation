@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { assignments, articleComments } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -22,9 +22,9 @@ const createCommentSchema = z.object({
  * POST /api/article-comments
  *
  * Creates an inline comment anchored to a text selection within an article section.
- * Auth: expert only. Caller must own the assignment referenced in the body.
+ * Auth: annotator only. Caller must own the assignment referenced in the body.
  */
-export const POST = requireExpert(async (req: NextRequest, session) => {
+export const POST = requireAnnotator(async (req: NextRequest, session) => {
   let raw: unknown;
   try {
     raw = await req.json();

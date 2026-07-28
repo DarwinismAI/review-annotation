@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics } from "@/db/datasets";
 import { saveAnnotationResults } from "@/lib/datasets/annotation-results";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { validateMetricSubmission } from "@/lib/datasets/metrics";
 
 const submitSchema = z.object({
@@ -12,7 +12,7 @@ const submitSchema = z.object({
   notes: z.record(z.string()).optional(),
 });
 
-export const POST = requireExpert(async (req: NextRequest, session, context) => {
+export const POST = requireAnnotator(async (req: NextRequest, session, context) => {
   const assignmentId = context?.params.id;
   if (!assignmentId) return NextResponse.json({ error: "MISSING_TASK_ID" }, { status: 400 });
 
@@ -49,7 +49,7 @@ export const POST = requireExpert(async (req: NextRequest, session, context) => 
       metricIds: assignedMetricIds,
       values: parsed.data.values,
       notes: parsed.data.notes,
-      status: "completed",
+      mode: "completed",
       now,
     });
 

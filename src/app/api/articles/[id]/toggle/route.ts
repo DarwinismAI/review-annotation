@@ -63,7 +63,7 @@ export const PATCH = requireAdmin(async (req, _session, context) => {
     })
     .where(eq(articles.id, id));
 
-  // When (re-)enabling: fan out to matching-domain experts (no-op for non-broadcast batches).
+  // When (re-)enabling: fan out to matching-domain annotators (no-op for non-broadcast batches).
   let assigned = 0;
   if (body.enabled) {
     try {

@@ -6,7 +6,7 @@
  * articles to be re-evaluated against the latest taxonomy.
  *
  * The helper is idempotent (UNIQUE constraint on assignments collapses dupes),
- * so this can be re-run safely. We process experts sequentially to avoid hammering
+ * so this can be re-run safely. We process annotators sequentially to avoid hammering
  * the connection pool — each call is a single SQL with CTE.
  *
  * Not marked temporary; kept around for ops convenience.
@@ -40,7 +40,7 @@ export const POST = requireAdmin(async () => {
 
     return NextResponse.json({
       ok: true,
-      experts: rows.length,
+      annotators: rows.length,
       totalAssigned,
       perExpert,
     });

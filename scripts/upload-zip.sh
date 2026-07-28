@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Upload a single .json or .zip to a running expert-review backend as admin.
+# Upload a single .json or .zip to a running review-annotation backend as admin.
 # Args: <fixture-path> <batch-name> [domain] [articleType]
 # Env: BASE_URL (default http://localhost:3000), ADMIN_SESSION_COOKIE
 # Non-local targets additionally require ALLOW_PROD_MUTATION=1.

@@ -10,13 +10,13 @@ export async function saveAnnotationResults(input: {
   metricIds: string[];
   values: Record<string, string | null | undefined>;
   notes?: Record<string, string | null | undefined>;
-  status: "draft" | "completed";
+  mode: "draft" | "completed";
   now: Date;
 }) {
   for (const metricId of input.metricIds) {
     const value = input.values[metricId] || null;
     const note = input.notes?.[metricId] ?? null;
-    if (input.status === "draft" && value === null && (note === null || note === "")) continue;
+    if (input.mode === "draft" && value === null && (note === null || note === "")) continue;
 
     const existing = (
       await input.tx
@@ -26,7 +26,7 @@ export async function saveAnnotationResults(input: {
     )[0];
 
     const payload = {
-      value: value ?? (input.status === "draft" ? "" : null),
+      value: value ?? (input.mode === "draft" ? "" : null),
       note,
       submittedAt: input.now,
       updatedAt: input.now,

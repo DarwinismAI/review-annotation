@@ -380,15 +380,15 @@ PRAGMA foreign_keys=ON;`);
   await client.execute({
     sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
           VALUES (?, ?, 'admin', 'Admin', ?, ?)`,
-    args: [adminId, "admin@expert-review.local", now, now],
+    args: [adminId, "admin@review-annotation.local", now, now],
   });
   await client.execute({
     sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
           VALUES (?, ?, 'superadmin', 'Superadmin', ?, ?)`,
-    args: ["00000000-0000-0000-0000-000000000099", "superadmin@expert-review.local", now, now],
+    args: ["00000000-0000-0000-0000-000000000099", "superadmin@review-annotation.local", now, now],
   });
 
-  console.log("✓ Database ready. Admin: admin@expert-review.local · Superadmin: superadmin@expert-review.local");
+  console.log("✓ Database ready. Admin: admin@review-annotation.local · Superadmin: superadmin@review-annotation.local");
   client.close();
 }
 

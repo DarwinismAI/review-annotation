@@ -25,7 +25,7 @@ const supabaseKey =
   process.env.SUPABASE_SECRET_KEY ??
   process.env.SUPABASE_SERVICE_ROLE_KEY;
 const manifestPath = process.argv[2];
-const adminEmail = process.env.ADMIN_EMAIL ?? "admin@expert-review.local";
+const adminEmail = process.env.ADMIN_EMAIL ?? "admin@review-annotation.local";
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY are required");

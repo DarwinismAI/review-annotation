@@ -93,7 +93,7 @@ function toExpertStat(row: ExpertApiRow): ExpertStat {
   const completed = row.articlesCompleted ?? 0;
   return {
     id: row.expertId,
-    name: row.name && row.name !== "—" ? row.name : "Chuyên gia",
+    name: row.name && row.name !== "—" ? row.name : "Annotator",
     assigned,
     completed,
     avgTimeMinutes: row.avgTimeMinutes ?? 0,
@@ -101,7 +101,7 @@ function toExpertStat(row: ExpertApiRow): ExpertStat {
     domain: row.domain ?? "—",
     domains: row.domains?.length ? row.domains : row.domain && row.domain !== "—" ? [row.domain] : [],
     isActive: completed > 0 || assigned > 0,
-    initials: makeInitials(row.name && row.name !== "—" ? row.name : "Chuyên gia"),
+    initials: makeInitials(row.name && row.name !== "—" ? row.name : "Annotator"),
     avatarCls: pickAvatarColor(row.expertId),
   };
 }
@@ -184,7 +184,7 @@ function TableSkeleton({ cols }: { cols: number }) {
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [experts, setExperts] = useState<ExpertStat[]>([]);
+  const [annotators, setAnnotators] = useState<ExpertStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [domainFilter, setDomainFilter] = useState<"all" | DomainKey>("all");
@@ -194,14 +194,14 @@ export default function AdminDashboardPage() {
       fetch("/api/dashboard/admin")
         .then((r) => r.json())
         .catch(() => ({})),
-      fetch("/api/dashboard/admin/experts")
+      fetch("/api/dashboard/admin/annotators")
         .then((r) => r.json())
         .catch(() => ({})),
     ])
       .then(([statsJson, expertsJson]) => {
         if (statsJson.data) setData(statsJson.data);
         const rows: ExpertApiRow[] = expertsJson.data ?? [];
-        setExperts(rows.map(toExpertStat));
+        setAnnotators(rows.map(toExpertStat));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -216,7 +216,7 @@ export default function AdminDashboardPage() {
   const overduePct = totalCount > 0 ? Math.round((overdueCount / totalCount) * 100) : 0;
   const filteredExperts = useMemo(() => {
     const query = normalizeText(searchTerm);
-    return experts.filter((expert) => {
+    return annotators.filter((expert) => {
       const domainLabels = domainLabelsForExpert(expert);
       const matchesDomain = domainFilter === "all" || expert.domains.includes(domainFilter);
       const matchesQuery =
@@ -224,7 +224,7 @@ export default function AdminDashboardPage() {
         normalizeText([expert.name, expert.domain, ...expert.domains, ...domainLabels].join(" ")).includes(query);
       return matchesDomain && matchesQuery;
     });
-  }, [domainFilter, experts, searchTerm]);
+  }, [domainFilter, annotators, searchTerm]);
 
   // ─── Render ───────────────────────────────────────────────────────
 
@@ -271,14 +271,14 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      {/* ── Expert Stats Table ── */}
+      {/* ── Annotator Stats Table ── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base text-foreground">Thống kê theo chuyên gia</CardTitle>
+            <CardTitle className="text-base text-foreground">Thống kê theo annotator</CardTitle>
             {!loading && (
               <Badge variant="secondary" className="text-xs">
-                {filteredExperts.length}/{experts.length} chuyên gia
+                {filteredExperts.length}/{annotators.length} annotator
               </Badge>
             )}
           </div>
@@ -288,7 +288,7 @@ export default function AdminDashboardPage() {
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Tìm tên chuyên gia hoặc lĩnh vực..."
+                placeholder="Tìm tên annotator hoặc lĩnh vực..."
                 className="pl-9"
               />
             </div>
@@ -311,7 +311,7 @@ export default function AdminDashboardPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Chuyên gia</TableHead>
+                <TableHead>Annotator</TableHead>
                 <TableHead>Lĩnh vực</TableHead>
                 <TableHead className="text-center">Đã review</TableHead>
                 <TableHead className="text-center">Tiến độ</TableHead>
@@ -328,16 +328,16 @@ export default function AdminDashboardPage() {
                   <TableSkeleton cols={7} />
                   <TableSkeleton cols={7} />
                 </>
-              ) : experts.length === 0 ? (
+              ) : annotators.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Chưa có chuyên gia nào nhận bài.
+                    Chưa có annotator nào nhận bài.
                   </TableCell>
                 </TableRow>
               ) : filteredExperts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Không có chuyên gia phù hợp bộ lọc.
+                    Không có annotator phù hợp bộ lọc.
                   </TableCell>
                 </TableRow>
               ) : (

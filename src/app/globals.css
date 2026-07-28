@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
-/* Design tokens from tokens.json — expert-review palette */
+/* Design tokens from tokens.json — review-annotation palette */
 @layer base {
   :root {
     /* shadcn/ui semantic variables mapped to design tokens */

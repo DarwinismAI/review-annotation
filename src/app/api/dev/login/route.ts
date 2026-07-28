@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isLocalDevelopment } from "@/lib/local-dev";
 import type { AppRole } from "@/lib/supabase/server";
-import { normalizeRole } from "@/lib/roles";
+import { isBootstrapSuperAdminEmail, normalizeRole } from "@/lib/roles";
 
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -15,6 +15,7 @@ function normalizePassword(value: unknown): string | null {
 
 async function resolveLocalRole(email: string): Promise<AppRole | null> {
   if (email === "superadmin@local.dev") return "superadmin";
+  if (isBootstrapSuperAdminEmail(email)) return "superadmin";
   if (email === "admin@local.dev") return "admin";
   if (email === "expert@local.dev" || email === "annotator@local.dev") return "annotator";
 

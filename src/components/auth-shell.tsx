@@ -59,7 +59,7 @@ export function AuthShell({
               </svg>
             </div>
             <div>
-              <p className="text-xl font-bold text-white leading-tight">Expert Review</p>
+              <p className="text-xl font-bold text-white leading-tight">Review Annotation</p>
               <p className="text-sm text-blue-400 font-medium">{brandTagline}</p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export function AuthShell({
                 />
               </svg>
             </div>
-            <span className="font-bold text-slate-900">Expert Review</span>
+            <span className="font-bold text-slate-900">Review Annotation</span>
           </div>
 
           {progress ? (

@@ -10,7 +10,7 @@ interface AssignmentInput {
   expertId: string;
 }
 
-/** POST /api/batches/:id/assign-bulk — bulk assign articles to experts. */
+/** POST /api/batches/:id/assign-bulk — bulk assign articles to annotators. */
 export const POST = requireAdmin(async (req: Request, _session: unknown, context?: { params?: { id?: string } }) => {
   const batchId = context?.params?.id;
   if (!batchId) {
@@ -57,7 +57,7 @@ export const POST = requireAdmin(async (req: Request, _session: unknown, context
       .where(eq(expertProfiles.userId, expertId));
 
     if (!profile || profile.status !== "active") {
-      results.push({ articleId, expertId, status: "skipped", reason: "Chuyên gia chưa kích hoạt tài khoản" });
+      results.push({ articleId, expertId, status: "skipped", reason: "Annotator chưa kích hoạt tài khoản" });
       continue;
     }
 

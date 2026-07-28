@@ -19,10 +19,10 @@ import {
 const DOMAINS: DomainKey[] = [...DOMAIN_KEYS];
 
 /**
- * Multi-select picker for expert main domains (1-3) and optional sub-domains.
+ * Multi-select picker for annotator main domains (1-3) and optional sub-domains.
  *
  * Selection model:
- * - `domains` — array of `DomainKey` the expert opts into.
+ * - `domains` — array of `DomainKey` the annotator opts into.
  * - `subDomains` — array of `SubDomainKey`. Only sub-domains whose parent is in
  *   `domains` are persisted; when a parent domain is deselected, its sub-domains
  *   are dropped silently. Empty set for a given parent = "any sub-domain of that

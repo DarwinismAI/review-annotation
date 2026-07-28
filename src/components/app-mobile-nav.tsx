@@ -16,19 +16,19 @@ const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/admin/datasets", label: "Datasets", icon: TableProperties },
   { href: "/admin/batches", label: "Đợt upload", icon: Package },
-  { href: "/admin/experts", label: "Annotator", icon: Users },
+  { href: "/admin/annotators", label: "Annotator", icon: Users },
   { href: "/admin/members", label: "Phân quyền", icon: Users },
   { href: "/admin/rubrics", label: "Rubric", icon: ClipboardList },
 ];
 
-const EXPERT_NAV = [
-  { href: "/expert/dashboard", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/expert/tasks", label: "Task", icon: FileText },
-  { href: "/expert/profile", label: "Hồ sơ", icon: UserCircle },
+const ANNOTATOR_NAV = [
+  { href: "/annotator/dashboard", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/annotator/tasks", label: "Task", icon: FileText },
+  { href: "/annotator/profile", label: "Hồ sơ", icon: UserCircle },
 ];
 
 interface AppMobileNavProps {
-  variant: "admin" | "expert";
+  variant: "admin" | "annotator";
   role?: string;
 }
 
@@ -39,7 +39,7 @@ export function AppMobileNav({ variant, role }: AppMobileNavProps) {
       ? ADMIN_NAV.filter((item) => item.href !== "/admin/members")
       : variant === "admin"
         ? ADMIN_NAV
-        : EXPERT_NAV;
+        : ANNOTATOR_NAV;
 
   return (
     <nav

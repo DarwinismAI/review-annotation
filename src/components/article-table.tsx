@@ -28,7 +28,7 @@ interface Article {
   assignedTo: { id: string; name: string } | null;
   /** AI score 0–100, may be null if not yet computed */
   aiScore?: number | null;
-  /** Article visible to experts? Defaults to true. */
+  /** Article visible to annotators? Defaults to true. */
   enabled?: boolean;
   /** Sub-domain classification from ingestion (e.g. "med_01"). NULL → unclassified. */
   subDomainId?: string | null;
@@ -38,7 +38,7 @@ interface Article {
 
 interface ArticleTableProps {
   articles: Article[];
-  experts: Expert[];
+  annotators: Expert[];
   batchDomain?: string;
 }
 
@@ -75,7 +75,7 @@ const STATUS_CFG: Record<
   },
 };
 
-/** Deterministic avatar color from expert name initial */
+/** Deterministic avatar color from annotator name initial */
 const AVATAR_COLORS = [
   "bg-blue-500",
   "bg-green-500",
@@ -231,7 +231,7 @@ function buildQuickPreview(data: {
 
 export function ArticleTable({
   articles: initialArticles,
-  experts,
+  annotators,
   batchDomain,
 }: ArticleTableProps) {
   const router = useRouter();
@@ -280,7 +280,7 @@ export function ArticleTable({
         const data = (await res.json()) as {
           data: { id: string; expertId: string };
         };
-        const expert = experts.find((e) => e.id === data.data.expertId);
+        const expert = annotators.find((e) => e.id === data.data.expertId);
         setArticles((prev) =>
           prev.map((a) =>
             a.id === articleId
@@ -306,7 +306,7 @@ export function ArticleTable({
   async function handleRevoke(article: Article) {
     if (!article.assignmentId) return;
     const ok = window.confirm(
-      `Thu hồi bài khỏi ${article.assignedTo?.name ?? "chuyên gia này"}? Sau đó bài có thể phân lại nếu không còn assignment khác.`
+      `Thu hồi bài khỏi ${article.assignedTo?.name ?? "annotator này"}? Sau đó bài có thể phân lại nếu không còn assignment khác.`
     );
     if (!ok) return;
 
@@ -367,7 +367,7 @@ export function ArticleTable({
                   Trạng thái
                 </th>
                 <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-48">
-                  Expert được giao
+                  Annotator được giao
                 </th>
                 <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-28">
                   Hành động
@@ -483,7 +483,7 @@ export function ArticleTable({
                       </span>
                     </td>
 
-                    {/* Expert được giao */}
+                    {/* Annotator được giao */}
                     <td className="px-5 py-3.5">
                       {a.assignedTo ? (
                         <div className="flex items-center gap-2.5">
@@ -495,7 +495,7 @@ export function ArticleTable({
                             </span>
                           </div>
                           <span className="font-medium text-slate-700 text-sm line-clamp-1">
-                            {a.assignedTo.name ?? "Chuyên gia"}
+                            {a.assignedTo.name ?? "Annotator"}
                           </span>
                         </div>
                       ) : (
@@ -511,7 +511,7 @@ export function ArticleTable({
                         <a
                           href={`/admin/articles/${a.id}/preview`}
                           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
-                          title="Preview như chuyên gia (read-only)"
+                          title="Preview như annotator (read-only)"
                         >
                           <svg
                             className="w-3.5 h-3.5"
@@ -566,7 +566,7 @@ export function ArticleTable({
       {/* Assign modal */}
       {showAssignModal && (() => {
         const article = articles.find((a) => a.id === showAssignModal);
-        const compatibleExperts = experts.filter((expert) =>
+        const compatibleExperts = annotators.filter((expert) =>
           expertMatchesArticle(expert, batchDomain, article?.subDomainId, article?.medicalMicroDomainId)
         );
         const articleSubDomainLabel =
@@ -591,14 +591,14 @@ export function ArticleTable({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-semibold text-slate-900 mb-4">
-              Phân công chuyên gia
+              Phân công annotator
             </h3>
             <p className="mb-3 text-sm text-slate-500">
               {articleSubDomainLabel || articleMedicalMicroLabel
                 ? `Bài thuộc ${[
                     articleSubDomainLabel ? `subdomain: ${articleSubDomainLabel}` : null,
                     articleMedicalMicroLabel ? `nhánh nhỏ: ${articleMedicalMicroLabel}` : null,
-                  ].filter(Boolean).join(" · ")}. Danh sách dưới đây chỉ hiển thị expert phù hợp.`
+                  ].filter(Boolean).join(" · ")}. Danh sách dưới đây chỉ hiển thị annotator phù hợp.`
                 : "Bài chưa có subdomain, danh sách dưới đây lọc theo lĩnh vực của đợt upload."}
             </p>
             <select
@@ -612,7 +612,7 @@ export function ArticleTable({
               disabled={compatibleExperts.length === 0}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:border-blue-400 outline-none mb-2 bg-white disabled:bg-slate-50 disabled:text-slate-400"
             >
-              <option value="">-- Chọn chuyên gia --</option>
+              <option value="">-- Chọn annotator --</option>
               {compatibleExperts.map((ex) => (
                 <option key={ex.id} value={ex.id}>
                   {ex.name}
@@ -623,11 +623,11 @@ export function ArticleTable({
             </select>
             {compatibleExperts.length === 0 ? (
               <p className="mb-4 text-sm text-amber-700">
-                Chưa có expert active nào khớp lĩnh vực/subdomain này.
+                Chưa có annotator active nào khớp lĩnh vực/subdomain này.
               </p>
             ) : (
               <p className="mb-4 text-xs text-slate-400">
-                Expert không chọn subdomain riêng được hiểu là nhận mọi subdomain trong lĩnh vực.
+                Annotator không chọn subdomain riêng được hiểu là nhận mọi subdomain trong lĩnh vực.
               </p>
             )}
             <div className="flex gap-3 justify-end">

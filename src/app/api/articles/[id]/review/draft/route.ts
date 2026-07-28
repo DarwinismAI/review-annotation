@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireExpert } from "@/lib/auth-middleware";
+import { requireAnnotator } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import { assignments, articles, batches, rubricCriteria, rubrics } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
@@ -24,7 +24,7 @@ function allowedScoresFromScale(scale: string | null): Set<number> {
   }
 }
 
-export const POST = requireExpert(async (req, session, context) => {
+export const POST = requireAnnotator(async (req, session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {
     return NextResponse.json(

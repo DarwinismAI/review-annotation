@@ -57,7 +57,7 @@ export const expertProfiles = pgTable(
 
 /**
  * Multi-domain join — expert can opt into product domains.
- * Source-of-truth for /expert/articles broadcast filtering.
+ * Source-of-truth for /annotator/articles broadcast filtering.
  * `expert_profiles.domain` retained as primary/back-compat field; new code reads here.
  */
 export const expertDomains = pgTable(
