@@ -1,42 +1,25 @@
 "use client";
-/**
- * Browser auth helpers — passwordless OTP via Supabase (path A iter-3).
- *
- * Email OTP flow:
- *   1) `sendOtp({ email, mode })` — mode: "login" (no create) or "signup" (create user).
- *   2) `verifyOtp({ email, token })` — exchanges OTP for a session cookie.
- *   3) `signOut()` — clears session.
- *
- * `getSessionUser()` returns `{ id, email, role } | null` for client components
- * that need to render based on session state without an extra fetch.
- */
+/** Browser auth helpers for pre-created Supabase accounts. */
 import { getSupabaseBrowser } from "@/lib/supabase/client";
-
-export type SendOtpMode = "login" | "signup";
-
-export async function sendOtp({ email, mode }: { email: string; mode: SendOtpMode }) {
-  const supabase = getSupabaseBrowser();
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: mode === "signup" },
-  });
-  if (error) throw new Error(error.message);
-}
-
-export async function verifyOtp({ email, token }: { email: string; token: string }) {
-  const supabase = getSupabaseBrowser();
-  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
-  if (error) throw new Error(error.message);
-  return data;
-}
 
 export async function signOut() {
   const supabase = getSupabaseBrowser();
   await supabase.auth.signOut();
 }
 
-/** Email + password login — admin escape hatch, không lộ trên `/login` thường. */
 export async function signInWithPassword({ email, password }: { email: string; password: string }) {
+  const localRes = await fetch("/api/dev/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (localRes.status !== 404) {
+    if (localRes.ok) return;
+    const body = (await localRes.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "Email hoặc mật khẩu không đúng");
+  }
+
   const supabase = getSupabaseBrowser();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(error.message);

@@ -4,7 +4,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY!;
 
-const PUBLIC_AUTH_PREFIXES = ["/login", "/signup"];
+const PUBLIC_AUTH_PREFIXES = ["/login"];
 
 /**
  * Edge middleware — refreshes the Supabase session cookie on every request to
