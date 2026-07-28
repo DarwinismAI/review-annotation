@@ -1,13 +1,14 @@
 /**
  * Seed a real, end-to-end reviewable batch for manual/automated QA:
- *   - test expert user (expert@expert-review.local) — passwordless OTP via Supabase Auth
+ *   - test expert user (expert@expert-review.local) — pre-created Supabase Auth account
  *   - one batch (`E2E Review Seed`) with 1 article backed by a valid PDF in Supabase Storage
  *   - ensures a law rubric exists (reuses `scripts/seed.ts` output when available)
  *   - creates an assignment linking the expert to the article
  *
  * Safe to re-run: skips anything that already exists.
  *
- * Run: DATABASE_URL=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... pnpm tsx scripts/seed-test-review.ts
+ * Run with DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+ * E2E_ADMIN_PASSWORD, and E2E_EXPERT_PASSWORD set explicitly.
  */
 
 import { eq } from "drizzle-orm";
@@ -95,16 +96,25 @@ async function createDb() {
 async function findOrCreateAuthUser(
   supa: SupabaseClient,
   email: string,
+  password: string,
   name: string,
   role: "admin" | "expert"
 ): Promise<string> {
   const { data: list, error: listErr } = await supa.auth.admin.listUsers({ perPage: 1000 });
   if (listErr) throw listErr;
   const existing = list.users.find((u) => u.email === email);
-  if (existing) return existing.id;
+  if (existing) {
+    const { error } = await supa.auth.admin.updateUserById(existing.id, {
+      password,
+      user_metadata: { role, name },
+    });
+    if (error) throw error;
+    return existing.id;
+  }
 
   const { data, error } = await supa.auth.admin.createUser({
     email,
+    password,
     email_confirm: true,
     user_metadata: { role, name },
   });
@@ -115,18 +125,35 @@ async function findOrCreateAuthUser(
 async function main() {
   const supaUrl = process.env.SUPABASE_URL;
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const adminPassword = process.env.E2E_ADMIN_PASSWORD;
+  const expertPassword = process.env.E2E_EXPERT_PASSWORD;
   if (!supaUrl || !supaKey) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY required");
+  if (!adminPassword || !expertPassword) {
+    throw new Error("E2E_ADMIN_PASSWORD / E2E_EXPERT_PASSWORD required");
+  }
   const sb = createClient(supaUrl, supaKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   const { db, close } = await createDb();
   console.log("→ Seeding E2E review fixture ...");
 
   // 1. Admin id (used as createdBy for batch). Auto-created if missing.
-  const adminId = await findOrCreateAuthUser(sb, ADMIN_EMAIL, "Quản trị viên Test", "admin");
+  const adminId = await findOrCreateAuthUser(
+    sb,
+    ADMIN_EMAIL,
+    adminPassword,
+    "Quản trị viên Test",
+    "admin"
+  );
   console.log(`  · admin: ${ADMIN_EMAIL} (${adminId})`);
 
-  // 2. Expert user — passwordless, login via OTP at runtime
-  const expertId = await findOrCreateAuthUser(sb, EXPERT_EMAIL, EXPERT_NAME, "expert");
+  // 2. Expert user — login via email/password at runtime
+  const expertId = await findOrCreateAuthUser(
+    sb,
+    EXPERT_EMAIL,
+    expertPassword,
+    EXPERT_NAME,
+    "expert"
+  );
   console.log(`  · expert: ${EXPERT_EMAIL} (${expertId})`);
 
   // 3. Law rubric must exist
@@ -256,7 +283,7 @@ async function main() {
   }
 
   await close();
-  console.log(`✅ Seed complete. Login as ${EXPERT_EMAIL} via OTP at /login`);
+  console.log(`✅ Seed complete. Login as ${EXPERT_EMAIL} at /login`);
 }
 
 main().catch((err) => {
