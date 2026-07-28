@@ -8,7 +8,8 @@
  * Safe to re-run: skips anything that already exists.
  *
  * Run with DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- * E2E_ADMIN_PASSWORD, and E2E_EXPERT_PASSWORD set explicitly.
+ * E2E_ADMIN_PASSWORD, E2E_EXPERT_PASSWORD, and
+ * ALLOW_TEST_DATA_MUTATION=1 set explicitly.
  */
 
 import { eq } from "drizzle-orm";
@@ -123,6 +124,10 @@ async function findOrCreateAuthUser(
 }
 
 async function main() {
+  if (process.env.ALLOW_TEST_DATA_MUTATION !== "1") {
+    throw new Error("Set ALLOW_TEST_DATA_MUTATION=1 to seed or reset test data");
+  }
+
   const supaUrl = process.env.SUPABASE_URL;
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const adminPassword = process.env.E2E_ADMIN_PASSWORD;

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { isLocalDevelopment } from "@/lib/local-dev";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY!;
@@ -24,7 +25,7 @@ export async function middleware(req: NextRequest) {
   if (!isAdmin && !isExpert) return NextResponse.next();
 
   // ── Local SQLite dev bypass: skip Supabase auth check ──
-  if (process.env.LOCAL_DB_PATH) {
+  if (isLocalDevelopment()) {
     return NextResponse.next();
   }
 

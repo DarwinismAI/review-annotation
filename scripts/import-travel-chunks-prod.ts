@@ -13,7 +13,7 @@
  */
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
-import { resolve, basename } from "node:path";
+import { resolve } from "node:path";
 
 interface Args {
   zip: string;
@@ -27,7 +27,7 @@ function parseArgs(): Args {
     zip: "seed_data/travel.zip",
     chunkSize: 10,
     namePrefix: "Du lịch",
-    baseUrl: "https://expert-review-app.vercel.app",
+    baseUrl: process.env.BASE_URL ?? "",
   };
   for (let i = 2; i < process.argv.length; i++) {
     const flag = process.argv[i];
@@ -39,9 +39,6 @@ function parseArgs(): Args {
   }
   return out;
 }
-
-const ADMIN_EMAIL = "admin@expert-review.local";
-const OTP = "012345";
 
 let cookieJar = "";
 
@@ -70,13 +67,11 @@ async function jar(url: string, init: RequestInit = {}): Promise<Response> {
   return res;
 }
 
-async function login(baseUrl: string) {
-  const res = await jar(`${baseUrl}/api/admin-shortcut`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: ADMIN_EMAIL, otp: OTP }),
-  });
-  if (!res.ok) throw new Error(`login failed: ${res.status} ${await res.text()}`);
+async function verifyAdminSession(baseUrl: string) {
+  const res = await jar(`${baseUrl}/api/auth/me`);
+  if (!res.ok) throw new Error(`session check failed: ${res.status} ${await res.text()}`);
+  const session = (await res.json()) as { role?: string } | null;
+  if (session?.role !== "admin") throw new Error("ADMIN_SESSION_COOKIE is not an admin session");
 }
 
 async function batchExists(baseUrl: string, name: string): Promise<boolean> {
@@ -145,6 +140,17 @@ async function uploadChunk(
 
 async function main() {
   const args = parseArgs();
+  if (process.env.ALLOW_PROD_MUTATION !== "1") {
+    throw new Error("Set ALLOW_PROD_MUTATION=1 to run the production import");
+  }
+  if (!args.baseUrl) throw new Error("BASE_URL or --base-url is required");
+  new URL(args.baseUrl);
+  const adminSessionCookie = process.env.ADMIN_SESSION_COOKIE;
+  if (!adminSessionCookie) throw new Error("ADMIN_SESSION_COOKIE is required");
+  cookieJar = adminSessionCookie;
+  await verifyAdminSession(args.baseUrl);
+  console.log("✓ verified admin session");
+
   console.log(`Loading ${args.zip}…`);
   const zipBuffer = await readFile(resolve(args.zip));
   const zip = await JSZip.loadAsync(zipBuffer);
@@ -161,9 +167,6 @@ async function main() {
     chunks.push(jsonEntries.slice(i, i + args.chunkSize));
   }
   console.log(`→ ${chunks.length} chunks`);
-
-  await login(args.baseUrl);
-  console.log("✓ logged in as admin");
 
   let created = 0,
     skipped = 0,

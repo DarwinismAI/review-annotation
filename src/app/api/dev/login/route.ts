@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isLocalDevelopment } from "@/lib/local-dev";
 import type { AppRole } from "@/lib/supabase/server";
-
-const LOCAL_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin123";
-const LOCAL_EXPERT_PASSWORD = process.env.EXPERT_PASSWORD ?? "expert123";
 
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -32,7 +30,7 @@ async function resolveLocalRole(email: string): Promise<AppRole | null> {
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.LOCAL_DB_PATH) {
+  if (!isLocalDevelopment()) {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }
 
@@ -46,11 +44,17 @@ export async function POST(req: NextRequest) {
   const role = await resolveLocalRole(email);
   const expectedPassword =
     role === "admin"
-      ? LOCAL_ADMIN_PASSWORD
+      ? process.env.ADMIN_PASSWORD
       : role === "expert"
-        ? LOCAL_EXPERT_PASSWORD
+        ? process.env.EXPERT_PASSWORD
         : null;
-  if (!role || password !== expectedPassword) {
+  if (!role) {
+    return NextResponse.json({ error: "Email hoặc mật khẩu không đúng" }, { status: 401 });
+  }
+  if (!expectedPassword) {
+    return NextResponse.json({ error: "LOCAL_AUTH_NOT_CONFIGURED" }, { status: 503 });
+  }
+  if (password !== expectedPassword) {
     return NextResponse.json({ error: "Email hoặc mật khẩu không đúng" }, { status: 401 });
   }
 

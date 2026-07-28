@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createSupabase } from "@supabase/supabase-js";
+import { isLocalDevelopment } from "@/lib/local-dev";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY!;
@@ -51,51 +52,19 @@ export interface AppSession {
 /** Returns the active session or null. Never throws. */
 export async function getSession(): Promise<AppSession | null> {
   // ── Local SQLite dev bypass ──
-  if (process.env.LOCAL_DB_PATH) {
-    // Cookie "dev_role=expert" (or env DEV_ROLE=expert) takes priority —
-    // skips Supabase auth so we can test expert pages without a real account.
+  if (isLocalDevelopment()) {
     const cookieStore = await cookies();
     const cookieRole = cookieStore.get("dev_role")?.value as AppRole | undefined;
-    const envRole = process.env.DEV_ROLE as AppRole | undefined;
-    const forceRole = cookieRole ?? envRole;
-    if (forceRole) {
-      const devId = forceRole === "expert"
+    if (cookieRole === "admin" || cookieRole === "expert") {
+      const devId = cookieRole === "expert"
         ? "00000000-0000-0000-0000-000000000002"
         : "00000000-0000-0000-0000-000000000001";
-      const devEmail = forceRole === "expert"
+      const devEmail = cookieRole === "expert"
         ? "expert@expert-review.local"
         : "admin@expert-review.local";
-      return { userId: devId, email: devEmail, name: null, role: forceRole };
+      return { userId: devId, email: devEmail, name: null, role: cookieRole };
     }
-
-    // No role override — try real Supabase session, fall back to admin bypass.
-    try {
-      const supabase = await getSupabaseServer();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role,email,name")
-          .eq("id", user.id)
-          .single();
-        if (profile) {
-          return {
-            userId: user.id,
-            email: profile.email,
-            name: (profile.name as string | null) ?? null,
-            role: profile.role as AppRole,
-          };
-        }
-      }
-    } catch {
-      // Supabase unreachable in local dev — fall through to bypass
-    }
-    return {
-      userId: "00000000-0000-0000-0000-000000000001",
-      email: "admin@expert-review.local",
-      name: null,
-      role: "admin",
-    };
+    return null;
   }
 
   // ── Production: Supabase Auth ──
