@@ -29,6 +29,9 @@ local-build.db
 uploads/
 seed_data/
 
+# Local-only seed helpers
+scripts/seed-humanity-dataset-local.ts
+
 supabase/.temp/
 test-results/
 migrations-sqlite/
