@@ -1,8 +1,7 @@
-// @ts-nocheck
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { requireAuth } from "@/lib/auth-middleware";
+import { requireExpert } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { expertProfiles, expertDomains, expertSubDomains, expertMedicalMicroDomains, profiles } from "@/db/schema";
 import { assignBroadcastForExpert } from "@/lib/auto-assign";
@@ -18,12 +17,11 @@ import {
 /**
  * POST /api/expert/profile/complete
  *
- * Called from /signup/profile after OTP verification. Creates an `expert_profiles`
- * row (status=active, auto-active per PRD §3 Q1) plus 1-2 `expert_domains` rows.
+ * Completes a pending expert invitation created by an administrator.
  *
  * Idempotent: re-running with the same caller upserts domains rather than failing.
  */
-export const POST = requireAuth(async (req, session) => {
+export const POST = requireExpert(async (req, session) => {
   let body: { domains?: unknown; sub_domains?: unknown; medical_micro_domains?: unknown; name?: unknown };
   try {
     body = await req.json();
@@ -65,8 +63,11 @@ export const POST = requireAuth(async (req, session) => {
     ? Array.from(
         new Set(
           body.sub_domains.filter(
-            (s): s is string =>
-              isSubDomainKey(s) && domainSet.has(domainForSubDomain(s) ?? "")
+            (subDomain): subDomain is string => {
+              if (!isSubDomainKey(subDomain)) return false;
+              const parentDomain = domainForSubDomain(subDomain);
+              return parentDomain !== null && domainSet.has(parentDomain);
+            }
           )
         )
       )
@@ -90,41 +91,51 @@ export const POST = requireAuth(async (req, session) => {
   const now = Date.now();
   const primary = domains[0];
 
-  // 1. Update profiles.name (auth.users + profiles row created by DB trigger
-  //    on signup; we set the human-readable name here).
+  const [existingProfile] = await db
+    .select({ id: expertProfiles.id, status: expertProfiles.status })
+    .from(expertProfiles)
+    .where(eq(expertProfiles.userId, userId));
+
+  if (!existingProfile) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "INVITATION_REQUIRED",
+          message: "Tài khoản chưa được quản trị viên mời",
+        },
+      },
+      { status: 403 }
+    );
+  }
+
+  if (existingProfile.status === "inactive") {
+    return NextResponse.json(
+      {
+        error: {
+          code: "PROFILE_INACTIVE",
+          message: "Tài khoản chuyên gia đã bị vô hiệu hóa",
+        },
+      },
+      { status: 403 }
+    );
+  }
+
+  // 1. Update the human-readable name mirrored from the auth account.
   await db
     .update(profiles)
     .set({ name, updatedAt: new Date() })
     .where(eq(profiles.id, userId));
 
-  // 2. Upsert expert_profiles primary row (back-compat — single domain field).
-  const [existingProfile] = await db
-    .select({ id: expertProfiles.id })
-    .from(expertProfiles)
-    .where(eq(expertProfiles.userId, userId));
-
-  if (existingProfile) {
-    await db
-      .update(expertProfiles)
-      .set({
-        domain: primary,
-        status: "active",
-        activatedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(expertProfiles.userId, userId));
-  } else {
-    await db.insert(expertProfiles).values({
-      id: createId(),
-      userId,
+  // 2. Activate the admin-created expert profile; this route never creates invitations.
+  await db
+    .update(expertProfiles)
+    .set({
       domain: primary,
       status: "active",
-      invitedAt: now,
       activatedAt: now,
-      createdAt: now,
       updatedAt: now,
-    });
-  }
+    })
+    .where(eq(expertProfiles.userId, userId));
 
   // 3. Reset expert_domains to exactly the requested set.
   await db.delete(expertDomains).where(eq(expertDomains.userId, userId));
