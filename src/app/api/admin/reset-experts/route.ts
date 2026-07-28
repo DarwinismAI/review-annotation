@@ -1,6 +1,6 @@
 /**
  * TEMPORARY ops endpoint — wipes all expert accounts so the system can rehydrate
- * from a fresh signup. Used once after the sub-domain schema change (migrations
+ * from fresh account setup. Used once after the sub-domain schema change (migrations
  * 0010 + 0011) so existing reviewer data doesn't pollute the new taxonomy.
  *
  * Mechanism: delete from auth.users WHERE id maps to a public.profiles row with

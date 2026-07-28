@@ -4,7 +4,7 @@ This repository is scoped to the Expert Review product only.
 
 ## Scope
 
-- Keep product code, schema, migrations, scripts, docs, tests, PRD, UAT, and prototypes that support the Expert Review flow.
+- Keep product code, schema, migrations, scripts, docs, and focused unit tests that support the Expert Review flow.
 - Do not add project-local agent bundles, hooks, or skills from other workspaces.
 - Do not add the separate guardrail annotation platform flow unless explicitly requested.
 

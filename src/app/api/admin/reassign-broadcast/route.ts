@@ -2,7 +2,7 @@
  * Ops endpoint — re-run the broadcast fan-out for every currently-active expert.
  *
  * Use when the matching logic changes (new sub-domain filter, expert toggles a
- * preference outside the standard signup/profile flow, etc.) and we want existing
+ * preference outside the standard admin/profile flow, etc.) and we want existing
  * articles to be re-evaluated against the latest taxonomy.
  *
  * The helper is idempotent (UNIQUE constraint on assignments collapses dupes),

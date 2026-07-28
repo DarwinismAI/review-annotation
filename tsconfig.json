@@ -23,7 +23,6 @@
     "node_modules",
     "scripts/debug-*.ts",
     "scripts/find-*.ts",
-    "scripts/import-travel-chunks-prod.ts",
-    "uat/**"
+    "scripts/import-travel-chunks-prod.ts"
   ]
 }

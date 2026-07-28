@@ -11,7 +11,7 @@ import { isDomainKey, type DomainKey } from "@/lib/labels";
  * GET /api/expert/articles?page=1&pageSize=20&domain=<domain-key>
  *
  * Multi-reviewer broadcast model: every matching-domain expert gets an assignment row
- * at signup / batch-create / article-enable (see lib/auto-assign.ts), so the legacy
+ * at admin setup / batch-create / article-enable (see lib/auto-assign.ts), so the legacy
  * "broadcast pool to claim" tab is gone. This endpoint paginates the caller's own list.
  *
  * Disabled articles (`enabled = false`) remain visible while the 24h grace window applies

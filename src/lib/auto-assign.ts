@@ -81,7 +81,7 @@ const MEDICAL_MICRO_DOMAIN_MATCHES = sql`
  * For one expert: insert assignments for every active broadcast article in
  * batches whose domain matches any of the expert's domains.
  *
- * Call after expert_domains are inserted/updated (signup, profile edit).
+ * Call after expert_domains are inserted/updated (admin setup, profile edit).
  */
 export async function assignBroadcastForExpert(expertId: string, db = defaultDb): Promise<number> {
   // SQLite: broadcast auto-assign not available (Postgres-specific SQL)
