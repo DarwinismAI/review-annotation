@@ -2,11 +2,20 @@ import { expect, test } from "@playwright/test";
 import { createClient } from "@libsql/client";
 
 const ADMIN_COOKIE = { Cookie: "dev_role=admin" };
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const LOCAL_DB_PATH = process.env.LOCAL_DB_PATH ?? "file:./local.db";
 const SCALE = [
   { score: 1, label: "Failed", description: "fail" },
   { score: 2, label: "Pass", description: "pass" },
 ];
+
+function isLocalBaseUrl(baseUrl: string) {
+  try {
+    return ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
 
 function createLocalDbClient() {
   if (!LOCAL_DB_PATH.startsWith("file:")) {
@@ -21,6 +30,8 @@ function uniqueId(prefix: string) {
 }
 
 test.describe("Rubric metrics API", () => {
+  test.skip(!isLocalBaseUrl(BASE_URL), "Rubric metric tests use dev_role and only run locally");
+
   test("invalid metric patch does not persist partial rubric changes", async ({ request }) => {
     const create = await request.post("/api/rubrics", {
       headers: ADMIN_COOKIE,
