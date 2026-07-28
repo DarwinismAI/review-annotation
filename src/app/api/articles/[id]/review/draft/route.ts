@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireExpert } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import { assignments, articles, batches, rubricCriteria, rubrics } from "@/db/schema";
@@ -95,10 +94,18 @@ export const POST = requireExpert(async (req, session, context) => {
           const criteria = await db
             .select({ id: rubricCriteria.id, scale: rubricCriteria.scale })
             .from(rubricCriteria)
-            .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric: any) => rubric.id)));
+            .where(
+              inArray(
+                rubricCriteria.rubricId,
+                (domainRubrics as { id: string }[]).map((rubric) => rubric.id)
+              )
+            );
 
           const allowedScoresByCriterion = new Map(
-            criteria.map((c) => [c.id, allowedScoresFromScale(c.scale)])
+            (criteria as { id: string; scale: string | null }[]).map((criterion) => [
+              criterion.id,
+              allowedScoresFromScale(criterion.scale),
+            ])
           );
           const invalidScore = scores.find((s) => {
             const allowed = allowedScoresByCriterion.get(s.criterionId);

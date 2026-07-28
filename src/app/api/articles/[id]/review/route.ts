@@ -25,6 +25,9 @@ const claimRatingSchema = z.object({
   verdict: z.enum(["correct", "incorrect", "unsure"]),
 });
 
+type RubricRow = typeof rubrics.$inferSelect;
+type RubricCriterionRow = typeof rubricCriteria.$inferSelect;
+
 function allowedScoresFromScale(scale: string | null): Set<number> {
   try {
     const parsed = JSON.parse(scale ?? "[]") as { score?: unknown }[];
@@ -141,27 +144,46 @@ export const GET = requireExpert(async (req, session, context) => {
       .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
     if (domainRubrics.length > 0) {
-      const rubricOrder = new Map(domainRubrics.map((rubric: any, index: number) => [rubric.id, index]));
+      const domainRubricRows = domainRubrics as RubricRow[];
+      const rubricOrder = new Map(
+        domainRubricRows.map((rubric, index) => [rubric.id, index])
+      );
       const criteria = await db
         .select()
         .from(rubricCriteria)
-        .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric: any) => rubric.id)));
+        .where(
+          inArray(
+            rubricCriteria.rubricId,
+            domainRubricRows.map((rubric) => rubric.id)
+          )
+        );
 
       rubricData = {
         id: domainRubrics[0].id,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        criteria: criteria
-          .map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description,
-            scale: JSON.parse(c.scale),
-            required: c.required === 1,
-            sortOrder: c.sortOrder,
-            rubricOrder: rubricOrder.get(c.rubricId) ?? 0,
+        criteria: (criteria as RubricCriterionRow[])
+          .map((criterion) => ({
+            id: criterion.id,
+            name: criterion.name,
+            description: criterion.description,
+            scale: JSON.parse(criterion.scale),
+            required: criterion.required === 1,
+            sortOrder: criterion.sortOrder,
+            rubricOrder: rubricOrder.get(criterion.rubricId) ?? 0,
           }))
-          .sort((a: any, b: any) => a.rubricOrder - b.rubricOrder || a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
-          .map(({ rubricOrder, ...metric }: any) => metric),
+          .sort(
+            (a, b) =>
+              a.rubricOrder - b.rubricOrder ||
+              a.sortOrder - b.sortOrder ||
+              a.id.localeCompare(b.id)
+          )
+          .map((criterion) => ({
+            id: criterion.id,
+            name: criterion.name,
+            description: criterion.description,
+            scale: criterion.scale,
+            required: criterion.required,
+            sortOrder: criterion.sortOrder,
+          })),
       };
     }
   }
@@ -379,7 +401,12 @@ export const POST = requireExpert(async (req, session, context) => {
         const allCriteria = await db
           .select({ id: rubricCriteria.id, required: rubricCriteria.required, scale: rubricCriteria.scale })
           .from(rubricCriteria)
-          .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric: any) => rubric.id)));
+          .where(
+            inArray(
+              rubricCriteria.rubricId,
+              (domainRubrics as { id: string }[]).map((rubric) => rubric.id)
+            )
+          );
 
         const requiredIds = allCriteria
           .filter((c: { id: string; required: number | boolean | null }) => c.required === 1 || c.required === true)
