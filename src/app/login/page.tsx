@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
-import { sendOtp } from "@/lib/auth-client";
-
-const ADMIN_EMAIL = "admin@expert-review.local";
+import { getSessionUser, signInWithPassword } from "@/lib/auth-client";
 
 export default function LoginEmailPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,22 +23,18 @@ export default function LoginEmailPage() {
       setError("Email không hợp lệ");
       return;
     }
+    if (!password) {
+      setError("Vui lòng nhập mật khẩu");
+      return;
+    }
     const trimmed = email.trim();
     setLoading(true);
     try {
-      // Admin shortcut: hardcoded OTP, no email actually sent — go straight to the code step.
-      if (trimmed.toLowerCase() !== ADMIN_EMAIL) {
-        await sendOtp({ email: trimmed, mode: "login" });
-      }
-      router.push(`/login/otp?email=${encodeURIComponent(trimmed)}`);
+      await signInWithPassword({ email: trimmed, password });
+      const user = await getSessionUser();
+      router.push(user?.role === "admin" ? "/admin" : "/expert");
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      // Supabase trả về "Signups not allowed for otp" khi email chưa đăng ký ở mode login (shouldCreateUser=false).
-      if (/signups? not allowed/i.test(raw)) {
-        setError("Tài khoản này chưa tồn tại, bạn đã đăng ký tài khoản chưa?");
-      } else {
-        setError(raw || "Không gửi được mã, vui lòng thử lại");
-      }
+      setError(err instanceof Error ? err.message : "Email hoặc mật khẩu không đúng");
     } finally {
       setLoading(false);
     }
@@ -47,16 +42,11 @@ export default function LoginEmailPage() {
 
   return (
     <AuthShell
-      brandTagline="Đăng nhập an toàn"
-      brandDescription="Mỗi lần đăng nhập, hệ thống gửi một mã 6 chữ số tới email của bạn. Không cần nhớ mật khẩu — không lưu mật khẩu."
-      progress={{ active: 0, total: 2 }}
+      brandTagline="Đăng nhập nội bộ"
+      brandDescription="Tài khoản được tạo sẵn bởi admin. Sử dụng email công việc và mật khẩu đã được cấp."
+      progress={null}
       title="Đăng nhập"
-      subtitle="Nhập email để nhận mã OTP đăng nhập."
-      footer={{
-        label: "Chưa có tài khoản?",
-        href: "/signup",
-        cta: "Đăng ký chuyên gia",
-      }}
+      subtitle="Nhập email và mật khẩu để vào hệ thống."
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         <div>
@@ -75,6 +65,22 @@ export default function LoginEmailPage() {
           />
         </div>
 
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+            Mật khẩu
+          </label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="Nhập mật khẩu"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg placeholder-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition"
+          />
+        </div>
+
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
@@ -82,7 +88,7 @@ export default function LoginEmailPage() {
           disabled={loading}
           className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
         >
-          {loading ? "Đang gửi mã..." : "Gửi mã OTP"}
+          {loading ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
       </form>
     </AuthShell>

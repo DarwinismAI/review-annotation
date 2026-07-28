@@ -4,23 +4,23 @@ import { ReactNode } from "react";
 import Link from "next/link";
 
 /**
- * Two-panel auth chrome shared by /login, /login/otp, /signup, /signup/otp, /signup/profile.
+ * Two-panel auth chrome shared by auth screens.
  * Left panel = navy brand block; right panel = the form supplied via children.
  *
  * `progress` renders the wizard dots — pass `null` for single-step screens (login B1).
  */
 export interface AuthShellProps {
-  /** Left-panel headline, e.g. "Đăng nhập" or "Đăng ký chuyên gia". */
+  /** Left-panel headline, e.g. "Đăng nhập nội bộ". */
   brandTagline: string;
   /** Left-panel description below the tagline. */
   brandDescription: string;
   /** 0-based active dot index, total dots, or null to hide the wizard nav. */
   progress: { active: number; total: number } | null;
-  /** Form title, e.g. "Đăng nhập" or "Bước 2 — Mã OTP". */
+  /** Form title, e.g. "Đăng nhập". */
   title: string;
   /** Subtitle below the form title. */
   subtitle: string;
-  /** Footer link below the form (e.g. switch to signup). */
+  /** Optional footer link below the form. */
   footer?: { label: string; href: string; cta: string };
   children: ReactNode;
 }
@@ -68,7 +68,7 @@ export function AuthShell({
         </div>
 
         <p className="text-blue-300 text-xs">
-          Nền tảng review AI &middot; Bảo mật bằng OTP qua email.
+          Nền tảng review AI &middot; Tài khoản nội bộ.
         </p>
       </aside>
 
