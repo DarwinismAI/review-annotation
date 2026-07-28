@@ -9,16 +9,21 @@ export async function signOut() {
 }
 
 export async function signInWithPassword({ email, password }: { email: string; password: string }) {
-  const localRes = await fetch("/api/dev/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  const isLocalhost =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
-  if (localRes.status !== 404) {
-    if (localRes.ok) return;
-    const body = (await localRes.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? "Email hoặc mật khẩu không đúng");
+  if (isLocalhost) {
+    const localRes = await fetch("/api/dev/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (localRes.status !== 404) {
+      if (localRes.ok) return;
+      const body = (await localRes.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? "Email hoặc mật khẩu không đúng");
+    }
   }
 
   const supabase = getSupabaseBrowser();
