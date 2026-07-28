@@ -28,7 +28,6 @@ export async function saveAnnotationResults(input: {
     const payload = {
       value: value ?? (input.status === "draft" ? "" : null),
       note,
-      status: input.status,
       submittedAt: input.now,
       updatedAt: input.now,
     };

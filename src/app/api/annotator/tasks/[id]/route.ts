@@ -53,7 +53,14 @@ export const GET = requireExpert(async (_req, session, context) => {
           .where(inArray(annotationMetrics.id, metricIds))
       : [];
   const metricSet = new Set(metricIds);
-  const resultRows = await db.select().from(annotationResults).where(eq(annotationResults.assignmentId, assignmentId));
+  const resultRows = await db
+    .select({
+      metricId: annotationResults.metricId,
+      value: annotationResults.value,
+      note: annotationResults.note,
+    })
+    .from(annotationResults)
+    .where(eq(annotationResults.assignmentId, assignmentId));
   const existingValues = Object.fromEntries(resultRows.map((result: any) => [result.metricId, { value: result.value ?? "", note: result.note }]));
   const displayConfig = assignment.displayConfig as { listFields: string[]; detailFields: string[] };
 

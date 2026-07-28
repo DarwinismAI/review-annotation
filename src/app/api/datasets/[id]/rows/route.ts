@@ -64,7 +64,8 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
             value: annotationResults.value,
           })
           .from(annotationResults)
-          .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationResults.status, "completed")))
+          .innerJoin(annotationAssignments, eq(annotationResults.assignmentId, annotationAssignments.id))
+          .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationAssignments.status, "completed")))
       : [];
 
   const assignmentsByRow = new Map<string, typeof assignmentRows>();
