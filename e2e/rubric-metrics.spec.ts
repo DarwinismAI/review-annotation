@@ -200,6 +200,51 @@ test.describe("Rubric metrics API", () => {
     }
   });
 
+  test("moving a metric to a domain with applicable assignments returns METRIC_IN_USE", async ({ request }) => {
+    const create = await request.post("/api/rubrics", {
+      headers: ADMIN_COOKIE,
+      data: {
+        name: `Moved metric ${Date.now()}`,
+        domain: "law",
+        description: "before",
+        required: true,
+        scale: SCALE,
+      },
+    });
+    expect(create.ok()).toBeTruthy();
+    const created = (await create.json()).data;
+    const db = createLocalDbClient();
+    const cleanupTargetAssignment = await createAssignmentFixture(db, "medical", created.createdAt + 1);
+
+    try {
+      const patch = await request.patch(`/api/rubrics/${created.id}`, {
+        headers: ADMIN_COOKIE,
+        data: {
+          name: created.name,
+          domain: "medical",
+          description: created.description,
+          required: created.required,
+          scale: created.scale,
+        },
+      });
+      expect(patch.status()).toBe(409);
+      expect(await patch.json()).toMatchObject({
+        error: {
+          code: "METRIC_IN_USE",
+        },
+      });
+
+      const fetched = await request.get(`/api/rubrics/${created.id}`, { headers: ADMIN_COOKIE });
+      expect(fetched.ok()).toBeTruthy();
+      expect((await fetched.json()).data).toMatchObject(created);
+    } finally {
+      await cleanupTargetAssignment();
+      await db.execute({ sql: "DELETE FROM rubric_criteria WHERE rubric_id = ?", args: [created.id] });
+      await db.execute({ sql: "DELETE FROM rubrics WHERE id = ?", args: [created.id] });
+      db.close();
+    }
+  });
+
   test("assignments from another domain or before metric creation do not lock editing", async ({ request }) => {
     const create = await request.post("/api/rubrics", {
       headers: ADMIN_COOKIE,

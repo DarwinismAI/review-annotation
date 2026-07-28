@@ -146,25 +146,28 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
     }
   }
 
-  const [applicableAssignment] = await db
-    .select({ id: assignments.id })
-    .from(assignments)
-    .innerJoin(articles, eq(assignments.articleId, articles.id))
-    .innerJoin(batches, eq(articles.batchId, batches.id))
-    .where(
-      and(
-        eq(batches.domain, rubric.domain),
-        gte(assignments.createdAt, rubric.createdAt),
-      ),
-    )
-    .limit(1);
-
-  if (applicableAssignment) {
-    return metricInUseResponse();
-  }
-
+  const applicableDomains = body.domain && body.domain !== rubric.domain
+    ? [rubric.domain, body.domain]
+    : [rubric.domain];
   const now = Date.now();
-  await db.transaction(async (tx: RubricTransaction) => {
+  const updated = await db.transaction(async (tx: RubricTransaction) => {
+    const [applicableAssignment] = await tx
+      .select({ id: assignments.id })
+      .from(assignments)
+      .innerJoin(articles, eq(assignments.articleId, articles.id))
+      .innerJoin(batches, eq(articles.batchId, batches.id))
+      .where(
+        and(
+          inArray(batches.domain, applicableDomains),
+          gte(assignments.createdAt, rubric.createdAt),
+        ),
+      )
+      .limit(1);
+
+    if (applicableAssignment) {
+      return false;
+    }
+
     const [existingCriterion] = await tx
       .select()
       .from(rubricCriteria)
@@ -212,7 +215,13 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
         .set({ name: metricName, updatedAt: now })
         .where(eq(rubricCriteria.id, existingCriterion.id));
     }
-  });
+
+    return true;
+  }, { isolationLevel: "serializable" });
+
+  if (!updated) {
+    return metricInUseResponse();
+  }
 
   const [criterion] = await db
     .select()
