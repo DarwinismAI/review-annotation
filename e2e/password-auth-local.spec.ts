@@ -1,6 +1,39 @@
 import { expect, test } from "@playwright/test";
+import { spawnSync } from "node:child_process";
+import { isLocalDevelopment } from "../src/lib/local-dev";
 
 const localAuthEnabled = process.env.AUTH_TEST_MODE === "local";
+const localAdminPassword = process.env.ADMIN_PASSWORD;
+
+function runGuardedCommand(
+  command: string,
+  args: string[],
+  env: Record<string, string | undefined>
+) {
+  const result = spawnSync(command, args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
+  return {
+    status: result.status,
+    output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
+  };
+}
+
+test("local auth mode is disabled in production even with a local database", () => {
+  expect(isLocalDevelopment({
+    NODE_ENV: "production",
+    LOCAL_DB_PATH: "./local.db",
+  })).toBe(false);
+  expect(isLocalDevelopment({
+    NODE_ENV: "development",
+    LOCAL_DB_PATH: "./local.db",
+  })).toBe(true);
+  expect(isLocalDevelopment({
+    NODE_ENV: "development",
+  })).toBe(false);
+});
 
 test("login uses email and password without public signup or OTP", async ({ page }) => {
   await page.goto("/login");
@@ -41,13 +74,19 @@ test("dev login is available only with local database mode", async ({ request })
   const response = await request.post("/api/dev/login", {
     data: {
       email: "admin@local.dev",
-      password: process.env.ADMIN_PASSWORD ?? "admin123",
+      password: localAdminPassword ?? "missing-explicit-password",
     },
   });
 
   if (!localAuthEnabled) {
     expect(response.status()).toBe(404);
     expect(await response.json()).toEqual({ error: "NOT_FOUND" });
+    return;
+  }
+
+  if (!localAdminPassword) {
+    expect(response.status()).toBe(503);
+    expect(await response.json()).toEqual({ error: "LOCAL_AUTH_NOT_CONFIGURED" });
     return;
   }
 
@@ -58,11 +97,14 @@ test("dev login is available only with local database mode", async ({ request })
 });
 
 test("local password form creates the local role session", async ({ page }) => {
-  test.skip(!localAuthEnabled, "Local login is exercised only with LOCAL_DB_PATH set");
+  test.skip(
+    !localAuthEnabled || !localAdminPassword,
+    "Local login requires local mode and an explicit ADMIN_PASSWORD"
+  );
 
   await page.goto("/login");
   await page.getByLabel("Email").fill("admin@local.dev");
-  await page.getByLabel("Mật khẩu").fill(process.env.ADMIN_PASSWORD ?? "admin123");
+  await page.getByLabel("Mật khẩu").fill(localAdminPassword!);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
 
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
@@ -97,4 +139,61 @@ test("non-local password form falls back to Supabase password auth", async ({ pa
     password: "wrong-password",
     gotrue_meta_security: {},
   });
+});
+
+test("seed script rejects missing mutation opt-in before configuration or I/O", () => {
+  const result = runGuardedCommand(
+    "pnpm",
+    ["tsx", "scripts/seed-test-review.ts"],
+    {
+      ALLOW_TEST_DATA_MUTATION: undefined,
+      DATABASE_URL: undefined,
+      SUPABASE_URL: undefined,
+      SUPABASE_SERVICE_ROLE_KEY: undefined,
+      E2E_ADMIN_PASSWORD: undefined,
+      E2E_EXPERT_PASSWORD: undefined,
+    }
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("ALLOW_TEST_DATA_MUTATION=1");
+  expect(result.output).not.toContain("DATABASE_URL required");
+  expect(result.output).not.toContain("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY required");
+});
+
+test("production upload script rejects missing mutation opt-in before file or network access", () => {
+  const result = runGuardedCommand(
+    "bash",
+    ["scripts/upload-zip.sh", "e2e/password-auth-local.spec.ts", "Guard test"],
+    {
+      BASE_URL: "https://example.invalid",
+      ADMIN_SESSION_COOKIE: undefined,
+      ALLOW_PROD_MUTATION: undefined,
+    }
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("ALLOW_PROD_MUTATION=1");
+  expect(result.output).not.toContain("unsupported extension");
+});
+
+test("production chunk import rejects missing mutation opt-in before ZIP or network access", () => {
+  const result = runGuardedCommand(
+    "pnpm",
+    [
+      "tsx",
+      "scripts/import-travel-chunks-prod.ts",
+      "--zip",
+      "/definitely/not/read-before-mutation-guard.zip",
+    ],
+    {
+      BASE_URL: "https://127.0.0.1:1",
+      ADMIN_SESSION_COOKIE: undefined,
+      ALLOW_PROD_MUTATION: undefined,
+    }
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("ALLOW_PROD_MUTATION=1");
+  expect(result.output).not.toContain("ENOENT");
 });
