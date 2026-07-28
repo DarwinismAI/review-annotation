@@ -3,12 +3,21 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 
 const EXPERT_ID = "00000000-0000-0000-0000-000000000002";
 const EXPERT_COOKIE = { Cookie: "dev_role=expert" };
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const SCALE = JSON.stringify([
   { score: 1, label: "Failed", description: "fail" },
   { score: 2, label: "Pass", description: "pass" },
 ]);
 
 type Domain = "law" | "medical" | "tourism";
+
+function isLocalBaseUrl(baseUrl: string) {
+  try {
+    return ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
 
 async function createFixture(domain: Domain) {
   const databaseUrl = process.env.LOCAL_DB_PATH;
@@ -110,6 +119,8 @@ async function postScore(
 }
 
 test.describe("Assignment metric snapshot", () => {
+  test.skip(!isLocalBaseUrl(BASE_URL), "Assignment metric snapshot tests use dev_role and only run locally");
+
   test("review GET excludes metrics created after the assignment", async ({ request }) => {
     const fixture = await createFixture("law");
     try {
