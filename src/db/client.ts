@@ -61,8 +61,29 @@ function getDb() {
   return drizzle(pgClient, { schema: allSchema }) as any;
 }
 
-export const db = getDb();
-export type Db = typeof db;
+type RuntimeDb = ReturnType<typeof getDb>;
+let cachedDb: RuntimeDb | null = null;
+
+function getRuntimeDb(): RuntimeDb {
+  cachedDb ??= getDb();
+  return cachedDb;
+}
+
+export const db = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      const runtimeDb = getRuntimeDb();
+      const value = (runtimeDb as any)[prop];
+      return typeof value === "function" ? value.bind(runtimeDb) : value;
+    },
+    set(_target, prop, value) {
+      (getRuntimeDb() as any)[prop] = value;
+      return true;
+    },
+  }
+) as RuntimeDb;
+export type Db = RuntimeDb;
 
 export async function getFirst<T>(query: Promise<T[] | T>): Promise<T | undefined> {
   const result = await query;

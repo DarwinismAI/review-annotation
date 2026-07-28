@@ -1,14 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL ?? "";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
 const BUCKET = "uploads";
 
+type SupabaseStorageClient = ReturnType<typeof createClient>;
+let cachedClient: SupabaseStorageClient | null = null;
+
+function getStorageClient(): SupabaseStorageClient {
+  if (cachedClient) return cachedClient;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for storage operations");
+  }
+
+  cachedClient = createClient(supabaseUrl, supabaseServiceKey);
+  return cachedClient;
+}
+
 export async function uploadFile(path: string, data: Buffer | Uint8Array, contentType: string) {
-  const { error } = await supabase.storage
+  const { error } = await getStorageClient().storage
     .from(BUCKET)
     .upload(path, data, { contentType, upsert: true });
 
@@ -17,12 +28,12 @@ export async function uploadFile(path: string, data: Buffer | Uint8Array, conten
 }
 
 export function getPublicUrl(path: string): string {
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  const { data } = getStorageClient().storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
 
 export async function getSignedUrl(path: string, expiresIn = 3600): Promise<string> {
-  const { data, error } = await supabase.storage
+  const { data, error } = await getStorageClient().storage
     .from(BUCKET)
     .createSignedUrl(path, expiresIn);
 
@@ -39,7 +50,7 @@ export async function createSignedUploadUrl(path: string): Promise<{
   token: string;
   path: string;
 }> {
-  const { data, error } = await supabase.storage
+  const { data, error } = await getStorageClient().storage
     .from(BUCKET)
     .createSignedUploadUrl(path);
 
@@ -49,7 +60,7 @@ export async function createSignedUploadUrl(path: string): Promise<{
 
 /** Download a previously-uploaded object as a Buffer (server-side only). */
 export async function downloadFile(path: string): Promise<Buffer> {
-  const { data, error } = await supabase.storage.from(BUCKET).download(path);
+  const { data, error } = await getStorageClient().storage.from(BUCKET).download(path);
   if (error || !data) throw new Error(`Storage download failed: ${error?.message ?? "no data"}`);
   const arrayBuf = await data.arrayBuffer();
   return Buffer.from(arrayBuf);
@@ -61,7 +72,7 @@ export async function downloadFile(path: string): Promise<Buffer> {
  */
 export async function deleteFolder(prefix: string): Promise<void> {
   async function listAll(path: string): Promise<string[]> {
-    const { data, error } = await supabase.storage.from(BUCKET).list(path, { limit: 1000 });
+    const { data, error } = await getStorageClient().storage.from(BUCKET).list(path, { limit: 1000 });
     if (error) throw new Error(`Storage list failed: ${error.message}`);
     const keys: string[] = [];
     for (const entry of data ?? []) {
@@ -78,7 +89,7 @@ export async function deleteFolder(prefix: string): Promise<void> {
 
   const keys = await listAll(prefix.replace(/\/$/, ""));
   if (keys.length === 0) return;
-  const { error } = await supabase.storage.from(BUCKET).remove(keys);
+  const { error } = await getStorageClient().storage.from(BUCKET).remove(keys);
   if (error) throw new Error(`Storage remove failed: ${error.message}`);
 }
 

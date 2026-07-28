@@ -382,7 +382,26 @@ PRAGMA foreign_keys=ON;`);
     args: ["00000000-0000-0000-0000-000000000099", "superadmin@review-annotation.local", now, now],
   });
 
-  console.log("✓ Database ready. Admin: admin@review-annotation.local · Superadmin: superadmin@review-annotation.local");
+  const annotators = [
+    { id: "00000000-0000-0000-0000-000000000002", profileId: "local-annotator-1", email: "annotator@review-annotation.local", name: "Annotator" },
+    { id: "00000000-0000-0000-0000-000000000003", profileId: "local-annotator-2", email: "annotator2@review-annotation.local", name: "Annotator 2" },
+    { id: "00000000-0000-0000-0000-000000000004", profileId: "local-annotator-3", email: "annotator3@review-annotation.local", name: "Annotator 3" },
+  ];
+  for (const annotator of annotators) {
+    await client.execute({
+      sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
+            VALUES (?, ?, 'annotator', ?, ?, ?)`,
+      args: [annotator.id, annotator.email, annotator.name, now, now],
+    });
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO expert_profiles
+            (id, user_id, domain, status, invite_token, invite_expires_at, invited_at, activated_at, created_at, updated_at)
+            VALUES (?, ?, 'safety_compliance', 'active', NULL, NULL, ?, ?, ?, ?)`,
+      args: [annotator.profileId, annotator.id, Date.now(), Date.now(), Date.now(), Date.now()],
+    });
+  }
+
+  console.log("✓ Database ready. Admin: admin@review-annotation.local · Superadmin: superadmin@review-annotation.local · 3 annotators");
   client.close();
 }
 

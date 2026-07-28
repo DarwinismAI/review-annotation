@@ -2,6 +2,36 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const PASSWORD = process.env.E2E_PASSWORD ?? "local-dev-password";
 const DASH_RE = new RegExp("[\\u2013\\u2014]");
+const RUN_ID = Date.now();
+const DATASET_NAME = `Playwright Safety Compliance ${RUN_ID}`;
+const INITIAL_ROWS = [
+  {
+    id: `pw-${RUN_ID}-1`,
+    input: "Mock safety request asking for a policy boundary.",
+    output: "The answer refuses unsafe details and redirects to safe guidance.",
+    label: {
+      intent: "safety_compliance",
+      sub_intent: "policy_boundary",
+      policy: "block",
+      severity: "P0",
+    },
+    dims: { policy_decision: "block" },
+  },
+  {
+    id: `pw-${RUN_ID}-2`,
+    input: "Mock compliance log about account access controls.",
+    output: "The answer provides benign account-security steps.",
+    label: {
+      intent: "safety_compliance",
+      sub_intent: "access_control",
+      policy: "allow",
+      severity: "P1",
+    },
+    dims: { policy_decision: "allow" },
+  },
+];
+
+let createdDatasetId = "";
 
 async function login(page: Page, email: string, landingPath: "/admin" | "/annotator") {
   await page.goto("/login");
@@ -84,12 +114,35 @@ test.describe.serial("local-dev review annotation flows", () => {
     await adminContext.close();
   });
 
-  test("admin can append extra-field rows and assign dataset tasks", async ({ page }, testInfo) => {
+  test("admin can create a dataset, choose display fields, append rows, and assign tasks", async ({ page }, testInfo) => {
     const errors = collectRuntimeErrors(page);
     await login(page, "admin@local.dev", "/admin");
+    await page.goto("/admin/datasets/new");
+    await expect(page.getByRole("heading", { name: "Tạo dataset" })).toBeVisible();
+    await page.getByLabel("Tên dataset").fill(DATASET_NAME);
+    await page.getByLabel("File JSON").setInputFiles({
+      name: "full-flow-dataset.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(INITIAL_ROWS)),
+    });
+    await expect(page.getByText(/full-flow-dataset\.json: 2 dòng/)).toBeVisible();
+    await expect(page.getByText("input").first()).toBeVisible();
+    await expect(page.getByText("label.policy").first()).toBeVisible();
+    await expect(page.getByText("Scale: Failed \/ Pass").first()).toBeVisible();
+    await assertPageHealth(page, testInfo, "admin-dataset-new-desktop");
+    const createResponsePromise = page.waitForResponse((response) => response.url().endsWith("/api/datasets") && response.request().method() === "POST");
+    await page.getByRole("button", { name: "Tạo dataset" }).click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.ok()).toBeTruthy();
+    const createPayload = await createResponse.json();
+    createdDatasetId = createPayload.datasetId;
+    expect(createdDatasetId).not.toEqual("");
+    expect(createdDatasetId).not.toEqual("new");
+    await expect(page).toHaveURL(new RegExp(`/admin/datasets/${createdDatasetId}$`));
+
     await page.goto("/admin/datasets");
     await expect(page.getByRole("heading", { name: "Datasets" })).toBeVisible();
-    await expect(page.getByText("Humanity - An toàn - Tuân thủ")).toBeVisible();
+    await expect(page.getByText(DATASET_NAME)).toBeVisible();
     await assertPageHealth(page, testInfo, "admin-datasets-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealth(page, testInfo, "admin-datasets-mobile");
@@ -98,10 +151,11 @@ test.describe.serial("local-dev review annotation flows", () => {
     const datasetsResponse = await page.request.get("/api/datasets");
     expect(datasetsResponse.ok()).toBeTruthy();
     const datasetsPayload = await datasetsResponse.json();
-    const dataset = datasetsPayload.datasets.find((item: { name: string }) => item.name === "Humanity - An toàn - Tuân thủ");
+    const dataset = datasetsPayload.datasets.find((item: { name: string }) => item.name === DATASET_NAME);
     expect(dataset).toBeTruthy();
+    expect(dataset.id).toEqual(createdDatasetId);
     await page.goto(`/admin/datasets/${dataset.id}`);
-    await expect(page.getByRole("heading", { name: "Humanity - An toàn - Tuân thủ" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
     await assertPageHealth(page, testInfo, "admin-dataset-detail-desktop");
 
     const detailResponse = await page.request.get(`/api/datasets/${dataset.id}`);
@@ -132,16 +186,17 @@ test.describe.serial("local-dev review annotation flows", () => {
     await page.getByRole("button", { name: "Cả dataset" }).click();
     await expect(page.getByLabel("Overlap")).toHaveValue("3");
     await page.getByRole("button", { name: "Xác nhận giao" }).click();
-    await expect(page.getByText("Đã tạo 3 task")).toBeVisible();
+    await expect(page.getByText(/Đã tạo \d+ task/)).toBeVisible();
     expect(unexpectedRuntimeErrors(errors)).toEqual([]);
   });
 
   test("annotator autosave, submit, and persisted metric values survive reload", async ({ page }, testInfo) => {
+    expect(createdDatasetId).not.toEqual("");
     const errors = collectRuntimeErrors(page);
     await login(page, "annotator@local.dev", "/annotator");
     await page.goto("/annotator/tasks");
     await expect(page.getByRole("heading", { name: "Task của tôi" })).toBeVisible();
-    await expect(page.getByText("Humanity - An toàn - Tuân thủ").first()).toBeVisible();
+    await expect(page.getByText(DATASET_NAME).first()).toBeVisible();
     await assertPageHealth(page, testInfo, "annotator-tasks-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealth(page, testInfo, "annotator-tasks-mobile");
@@ -150,10 +205,10 @@ test.describe.serial("local-dev review annotation flows", () => {
     const tasksResponse = await page.request.get("/api/annotator/tasks");
     expect(tasksResponse.ok()).toBeTruthy();
     const tasksPayload = await tasksResponse.json();
-    const task = tasksPayload.tasks.find((item: { status: string }) => item.status !== "completed");
+    const task = tasksPayload.tasks.find((item: { datasetName: string; status: string }) => item.datasetName === DATASET_NAME && item.status !== "completed");
     expect(task).toBeTruthy();
     await page.goto(`/annotator/tasks/${task.id}`);
-    await expect(page.getByRole("heading", { name: "Humanity - An toàn - Tuân thủ" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
 
     const taskDetailResponse = await page.request.get(`/api/annotator/tasks/${task.id}`);
     expect(taskDetailResponse.ok()).toBeTruthy();

@@ -17,7 +17,8 @@
     "seed:local": "tsx scripts/seed.ts",
     "assign:new-experts": "tsx scripts/assign-new-experts-rest.ts",
     "smoke:local": "bash scripts/smoke.sh",
-    "test:datasets": "tsx tests/datasets/run.ts"
+    "test:datasets": "tsx tests/datasets/run.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
