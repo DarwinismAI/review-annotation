@@ -1,7 +1,9 @@
-// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, type ExtractTablesWithRelations } from "drizzle-orm";
+import type { PgTransaction } from "drizzle-orm/pg-core";
+import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
+import * as schema from "@/db/schema";
 import { db } from "@/db/client";
 import { rubricCriteria, rubrics } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
@@ -25,6 +27,13 @@ interface MetricBody extends Partial<MetricInput> {
   domain?: string;
   criteria?: MetricInput[];
 }
+
+type RubricTransaction = PgTransaction<
+  PostgresJsQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+type Rubric = typeof rubrics.$inferSelect;
 
 function normalizeMetricInput(body: MetricBody) {
   const metric = Array.isArray(body.scale)
@@ -73,7 +82,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
     .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
   const result = await Promise.all(
-    rubricRows.map(async (rubric) => {
+    rubricRows.map(async (rubric: Rubric) => {
       const [criterion] = await db
         .select()
         .from(rubricCriteria)
@@ -113,7 +122,7 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
   const rubricId = createId();
   const criterionId = createId();
 
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: RubricTransaction) => {
     await tx.insert(rubrics).values({
       id: rubricId,
       name: normalized.metric.name,

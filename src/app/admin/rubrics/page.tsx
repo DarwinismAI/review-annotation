@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { labelForDomain } from "@/lib/labels";
 
 interface Rubric {
@@ -63,7 +64,7 @@ export default function AdminRubricsPage() {
         {/* Title row + create button */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Quản lý metrics</h1>
-          <a
+          <Link
             href="/admin/rubrics/new"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
           >
@@ -71,7 +72,7 @@ export default function AdminRubricsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Tạo metric mới
-          </a>
+          </Link>
         </div>
 
         {/* Rubric table */}
@@ -123,12 +124,12 @@ export default function AdminRubricsPage() {
                         </td>
                         <td className="px-5 py-4 text-center">
                           <div className="flex items-center justify-center gap-3">
-                            <a
+                            <Link
                               href={`/admin/rubrics/${r.id}`}
                               className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
                             >
                               Xem
-                            </a>
+                            </Link>
                             <button
                               onClick={() => {
                                 setDeleteError("");
