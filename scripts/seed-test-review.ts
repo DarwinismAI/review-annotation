@@ -89,7 +89,7 @@ async function createDb() {
   const { drizzle } = await import("drizzle-orm/postgres-js");
   const postgres = (await import("postgres")).default;
   const client = postgres(process.env.DATABASE_URL, { prepare: false });
-  return { db: drizzle(client, { schema }) as any, close: () => client.end() };
+  return { db: drizzle(client, { schema }), close: () => client.end() };
 }
 
 /** Find auth user by email or create via admin API. Trigger mirrors to public.profiles. */
