@@ -3,7 +3,7 @@ import { requireExpert } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import { assignments, articles, batches, rubricCriteria, rubrics } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
-import { eq, and, inArray, asc, lte } from "drizzle-orm";
+import { eq, and, inArray, asc, lte, isNull } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
 /**
@@ -128,84 +128,74 @@ export const POST = requireExpert(async (req, session, context) => {
     }
   }
 
+  let reviewId: string;
   const now = new Date();
 
-  // Find existing draft (status=draft, matching paragraphId)
-  const conditions = paragraphId
-    ? and(
-        eq(reviews.assignmentId, assignment.id),
-        eq(reviews.articleId, articleId),
-        eq(reviews.paragraphId, paragraphId),
-        eq(reviews.status, "draft")
-      )
-    : and(
-        eq(reviews.assignmentId, assignment.id),
-        eq(reviews.articleId, articleId),
-        eq(reviews.status, "draft")
-      );
+  await db.transaction(async (tx: any) => {
+    const conditions = paragraphId
+      ? and(
+          eq(reviews.assignmentId, assignment.id),
+          eq(reviews.articleId, articleId),
+          eq(reviews.paragraphId, paragraphId),
+          eq(reviews.status, "draft")
+        )
+      : and(
+          eq(reviews.assignmentId, assignment.id),
+          eq(reviews.articleId, articleId),
+          isNull(reviews.paragraphId),
+          eq(reviews.status, "draft")
+        );
 
-  const [existing] = await db.select().from(reviews).where(conditions);
+    const [existing] = await tx.select().from(reviews).where(conditions);
 
-  let reviewId: string;
-
-  if (existing) {
-    reviewId = existing.id;
-    await db
-      .update(reviews)
-      .set({ updatedAt: now })
-      .where(eq(reviews.id, reviewId));
-  } else {
-    reviewId = createId();
-    await db.insert(reviews).values({
-      id: reviewId,
-      assignmentId: assignment.id,
-      articleId,
-      expertId: session.user.id,
-      paragraphId: paragraphId ?? null,
-      status: "draft",
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Upsert scores: delete existing for this review, re-insert
-  const oldScores = await db
-    .select({ id: reviewScores.id })
-    .from(reviewScores)
-    .where(eq(reviewScores.reviewId, reviewId));
-
-  for (const s of oldScores) {
-    await db.delete(reviewScores).where(eq(reviewScores.id, s.id));
-  }
-
-  if (scores.length > 0) {
-    await db.insert(reviewScores).values(
-      scores.map((s) => ({
-        id: createId(),
-        reviewId,
-        criterionId: s.criterionId,
-        score: s.score,
-        reason: s.reason ?? null,
+    if (existing) {
+      reviewId = existing.id;
+      await tx.update(reviews).set({ updatedAt: now }).where(eq(reviews.id, reviewId));
+    } else {
+      reviewId = createId();
+      await tx.insert(reviews).values({
+        id: reviewId,
+        assignmentId: assignment.id,
+        articleId,
+        expertId: session.user.id,
+        paragraphId: paragraphId ?? null,
+        status: "draft",
         createdAt: now,
         updatedAt: now,
-      }))
-    );
-  }
+      });
+    }
 
-  // Move assignment to in_review if still in assigned state
-  await db
-    .update(assignments)
-    .set({ status: "in_review", updatedAt: Date.now() })
-    .where(
-      and(eq(assignments.id, assignment.id), eq(assignments.status, "assigned"))
-    );
+    const oldScores = await tx.select({ id: reviewScores.id }).from(reviewScores).where(eq(reviewScores.reviewId, reviewId));
+    for (const s of oldScores) {
+      await tx.delete(reviewScores).where(eq(reviewScores.id, s.id));
+    }
 
-  await db
-    .update(articles)
-    .set({ status: "in_review", updatedAt: Date.now() })
-    .where(and(eq(articles.id, articleId), eq(articles.status, "assigned")));
+    if (scores.length > 0) {
+      await tx.insert(reviewScores).values(
+        scores.map((s) => ({
+          id: createId(),
+          reviewId,
+          criterionId: s.criterionId,
+          score: s.score,
+          reason: s.reason ?? null,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      );
+    }
+
+    await tx
+      .update(assignments)
+      .set({ status: "in_review", updatedAt: Date.now() })
+      .where(and(eq(assignments.id, assignment.id), eq(assignments.status, "assigned")));
+
+    await tx
+      .update(articles)
+      .set({ status: "in_review", updatedAt: Date.now() })
+      .where(and(eq(articles.id, articleId), eq(articles.status, "assigned")));
+  });
 
   return NextResponse.json({
-    data: { reviewId, savedAt: now.toISOString() },
+    data: { reviewId: reviewId!, savedAt: now.toISOString() },
   });
 });

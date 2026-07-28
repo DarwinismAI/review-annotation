@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isLocalDevelopment } from "@/lib/local-dev";
 import type { AppRole } from "@/lib/supabase/server";
+import { normalizeRole } from "@/lib/roles";
 
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -13,8 +14,9 @@ function normalizePassword(value: unknown): string | null {
 }
 
 async function resolveLocalRole(email: string): Promise<AppRole | null> {
+  if (email === "superadmin@local.dev") return "superadmin";
   if (email === "admin@local.dev") return "admin";
-  if (email === "expert@local.dev" || email === "annotator@local.dev") return "expert";
+  if (email === "expert@local.dev" || email === "annotator@local.dev") return "annotator";
 
   const [{ eq }, { db }, { profiles }] = await Promise.all([
     import("drizzle-orm"),
@@ -26,7 +28,7 @@ async function resolveLocalRole(email: string): Promise<AppRole | null> {
     .from(profiles)
     .where(eq(profiles.email, email));
 
-  return profile?.role === "admin" || profile?.role === "expert" ? profile.role : null;
+  return normalizeRole(profile?.role);
 }
 
 export async function POST(req: NextRequest) {
@@ -43,9 +45,11 @@ export async function POST(req: NextRequest) {
 
   const role = await resolveLocalRole(email);
   const expectedPassword =
-    role === "admin"
+    role === "superadmin"
+      ? process.env.SUPERADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD
+      : role === "admin"
       ? process.env.ADMIN_PASSWORD
-      : role === "expert"
+      : role === "annotator"
         ? process.env.EXPERT_PASSWORD
         : null;
   if (!role) {

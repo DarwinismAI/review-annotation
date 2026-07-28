@@ -94,11 +94,16 @@ async function main() {
           VALUES (?, ?, 'admin', 'Admin', ?, ?)`,
     args: [ADMIN_ID, "admin@expert-review.local", nowIso, nowIso],
   });
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
+          VALUES (?, ?, 'superadmin', 'Superadmin', ?, ?)`,
+    args: ["00000000-0000-0000-0000-000000000099", "superadmin@expert-review.local", nowIso, nowIso],
+  });
 
   await db.execute({
     sql: `INSERT OR REPLACE INTO profiles (id, email, role, name, created_at, updated_at)
-          VALUES (?, ?, 'expert', ?, COALESCE((SELECT created_at FROM profiles WHERE id = ?), ?), ?)`,
-    args: [EXPERT_ID, "expert@expert-review.local", "Chuyên gia An toàn - Tuân thủ", EXPERT_ID, nowIso, nowIso],
+          VALUES (?, ?, 'annotator', ?, COALESCE((SELECT created_at FROM profiles WHERE id = ?), ?), ?)`,
+    args: [EXPERT_ID, "annotator@expert-review.local", "Annotator An toàn - Tuân thủ", EXPERT_ID, nowIso, nowIso],
   });
 
   await db.execute({
@@ -204,7 +209,7 @@ async function main() {
 
   db.close();
   console.log(`Seeded ${items.length} logs into batch "${BATCH_NAME}" (${batchId}).`);
-  console.log("Expert local user: expert@expert-review.local");
+  console.log("Annotator local user: annotator@expert-review.local");
 }
 
 main().catch((err) => {

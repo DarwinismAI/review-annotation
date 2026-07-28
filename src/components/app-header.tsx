@@ -19,6 +19,7 @@ function initials(u: ClientSessionUser): string {
 }
 
 function avatarBg(role: string): string {
+  if (role === "superadmin") return "bg-violet-600";
   return role === "admin" ? "bg-blue-500" : "bg-amber-500";
 }
 

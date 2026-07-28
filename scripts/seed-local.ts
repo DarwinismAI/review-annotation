@@ -10,7 +10,7 @@ const SQL = `
 CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
-  role TEXT NOT NULL DEFAULT 'expert' CHECK(role IN ('admin', 'expert')),
+  role TEXT NOT NULL DEFAULT 'annotator' CHECK(role IN ('superadmin', 'admin', 'annotator')),
   name TEXT,
   image TEXT,
   created_at TEXT NOT NULL,
@@ -319,13 +319,16 @@ CREATE TABLE IF NOT EXISTS annotation_results (
   row_id TEXT NOT NULL REFERENCES dataset_rows(id) ON DELETE CASCADE,
   annotator_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   metric_id TEXT NOT NULL REFERENCES annotation_metrics(id) ON DELETE CASCADE,
-  value TEXT NOT NULL,
+  value TEXT,
   note TEXT,
+  status TEXT NOT NULL DEFAULT 'completed',
   submitted_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS annotation_results_assignment_metric_unique ON annotation_results(assignment_id, metric_id);
 CREATE INDEX IF NOT EXISTS annotation_results_row_metric_idx ON annotation_results(row_id, metric_id);
+CREATE INDEX IF NOT EXISTS annotation_results_assignment_status_idx ON annotation_results(assignment_id, status);
+CREATE INDEX IF NOT EXISTS annotation_results_row_metric_status_idx ON annotation_results(row_id, metric_id, status);
 `;
 
 async function main() {
@@ -357,6 +360,9 @@ PRAGMA foreign_keys=ON;`);
     `CREATE INDEX IF NOT EXISTS articles_sub_domain_idx ON articles(sub_domain_id)`,
     `ALTER TABLE articles ADD COLUMN medical_micro_domain_id TEXT`,
     `CREATE INDEX IF NOT EXISTS articles_medical_micro_domain_idx ON articles(medical_micro_domain_id)`,
+    `ALTER TABLE annotation_results ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'`,
+    `CREATE INDEX IF NOT EXISTS annotation_results_assignment_status_idx ON annotation_results(assignment_id, status)`,
+    `CREATE INDEX IF NOT EXISTS annotation_results_row_metric_status_idx ON annotation_results(row_id, metric_id, status)`,
   ];
   for (const stmt of POST_ALTER) {
     try {
@@ -368,7 +374,7 @@ PRAGMA foreign_keys=ON;`);
     }
   }
 
-  // Seed admin user
+  // Seed local admin users
   const now = new Date().toISOString();
   const adminId = "00000000-0000-0000-0000-000000000001";
   await client.execute({
@@ -376,8 +382,13 @@ PRAGMA foreign_keys=ON;`);
           VALUES (?, ?, 'admin', 'Admin', ?, ?)`,
     args: [adminId, "admin@expert-review.local", now, now],
   });
+  await client.execute({
+    sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
+          VALUES (?, ?, 'superadmin', 'Superadmin', ?, ?)`,
+    args: ["00000000-0000-0000-0000-000000000099", "superadmin@expert-review.local", now, now],
+  });
 
-  console.log("✓ Database ready. Admin: admin@expert-review.local");
+  console.log("✓ Database ready. Admin: admin@expert-review.local · Superadmin: superadmin@expert-review.local");
   client.close();
 }
 

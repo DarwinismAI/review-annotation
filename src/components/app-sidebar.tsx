@@ -19,6 +19,7 @@ const ADMIN_NAV = [
   { href: "/admin/datasets", label: "Datasets", icon: TableProperties },
   { href: "/admin/batches", label: "Đợt upload", icon: Package },
   { href: "/admin/experts", label: "Annotator", icon: Users },
+  { href: "/admin/members", label: "Phân quyền", icon: Users },
   { href: "/admin/rubrics", label: "Rubric", icon: ClipboardList },
 ];
 
@@ -33,11 +34,17 @@ const EXPERT_NAV = [
 
 interface AppSidebarProps {
   variant: "admin" | "expert";
+  role?: string;
 }
 
-export function AppSidebar({ variant }: AppSidebarProps) {
+export function AppSidebar({ variant, role }: AppSidebarProps) {
   const pathname = usePathname();
-  const items = variant === "admin" ? ADMIN_NAV : EXPERT_NAV;
+  const items =
+    variant === "admin" && role !== "superadmin"
+      ? ADMIN_NAV.filter((item) => item.href !== "/admin/members")
+      : variant === "admin"
+        ? ADMIN_NAV
+        : EXPERT_NAV;
 
   return (
     <aside className="hidden lg:flex w-56 bg-white border-r border-slate-200 flex-col shrink-0">

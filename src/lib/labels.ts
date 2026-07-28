@@ -12,7 +12,9 @@ export const ASSIGNMENT_MODE_LABELS = {
 } as const;
 
 export const ROLE_LABELS = {
+  superadmin: "Superadmin",
   admin: "Quản trị viên",
+  annotator: "Người gán nhãn",
   expert: "Người gán nhãn",
 } as const;
 

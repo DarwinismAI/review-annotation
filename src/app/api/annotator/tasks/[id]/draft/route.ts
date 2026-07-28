@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics } from "@/db/datasets";
 import { saveAnnotationResults } from "@/lib/datasets/annotation-results";
 import { requireExpert } from "@/lib/auth-middleware";
-import { validateMetricSubmission } from "@/lib/datasets/metrics";
+import { validateDraftMetricSubmission } from "@/lib/datasets/metrics";
 
-const submitSchema = z.object({
-  values: z.record(z.string()),
+const draftSchema = z.object({
+  values: z.record(z.string()).default({}),
   notes: z.record(z.string()).optional(),
 });
 
@@ -16,7 +16,7 @@ export const POST = requireExpert(async (req: NextRequest, session, context) => 
   const assignmentId = context?.params.id;
   if (!assignmentId) return NextResponse.json({ error: "MISSING_TASK_ID" }, { status: 400 });
 
-  const parsed = submitSchema.safeParse(await req.json());
+  const parsed = draftSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "INVALID_REQUEST", details: parsed.error.flatten() }, { status: 400 });
   }
@@ -25,10 +25,13 @@ export const POST = requireExpert(async (req: NextRequest, session, context) => 
   if (!assignment || assignment.annotatorId !== session.user.id) {
     return NextResponse.json({ error: "TASK_NOT_FOUND" }, { status: 404 });
   }
+  if (assignment.status === "completed") {
+    return NextResponse.json({ ok: true, status: "completed", savedAt: null });
+  }
 
   const assignedMetricIds = assignment.metricIds as string[];
   const metrics = await db.select().from(annotationMetrics).where(eq(annotationMetrics.datasetId, assignment.datasetId));
-  const validation = validateMetricSubmission({
+  const validation = validateDraftMetricSubmission({
     assignedMetricIds,
     metrics: metrics.map((metric: any) => ({ id: metric.id, scale: metric.scaleJson as { values: string[] } })),
     values: parsed.data.values,
@@ -39,7 +42,6 @@ export const POST = requireExpert(async (req: NextRequest, session, context) => 
   }
 
   const now = new Date();
-
   await db.transaction(async (tx: any) => {
     await saveAnnotationResults({
       tx,
@@ -49,15 +51,15 @@ export const POST = requireExpert(async (req: NextRequest, session, context) => 
       metricIds: assignedMetricIds,
       values: parsed.data.values,
       notes: parsed.data.notes,
-      status: "completed",
+      status: "draft",
       now,
     });
 
     await tx
       .update(annotationAssignments)
-      .set({ status: "completed", completedAt: now, updatedAt: now })
-      .where(eq(annotationAssignments.id, assignmentId));
+      .set({ status: "in_progress", updatedAt: now })
+      .where(and(eq(annotationAssignments.id, assignmentId), eq(annotationAssignments.status, "assigned")));
   });
 
-  return NextResponse.json({ ok: true, status: "completed" });
+  return NextResponse.json({ ok: true, status: "draft", savedAt: now.toISOString() });
 });

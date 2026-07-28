@@ -85,7 +85,7 @@ async function loadExperts(): Promise<ExpertCandidate[]> {
     .select(
       "user_id,domain,profiles!inner(id,email,name,role,expert_profiles!inner(status))"
     )
-    .eq("profiles.role", "expert")
+    .eq("profiles.role", "annotator")
     .eq("profiles.expert_profiles.status", "active")
     .order("created_at", { ascending: true });
 

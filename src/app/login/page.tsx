@@ -32,7 +32,7 @@ export default function LoginEmailPage() {
     try {
       await signInWithPassword({ email: trimmed, password });
       const user = await getSessionUser();
-      router.push(user?.role === "admin" ? "/admin" : "/expert");
+      router.push(user?.role === "admin" || user?.role === "superadmin" ? "/admin" : "/expert");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Email hoặc mật khẩu không đúng");
     } finally {

@@ -23,14 +23,14 @@ export const profiles = pgTable(
   {
     id: uuid("id").primaryKey().references(() => authUsers.id, { onDelete: "cascade" }),
     email: text("email").notNull().unique(),
-    /** "admin" | "expert" */
-    role: text("role").notNull().default("expert"),
+    /** "superadmin" | "admin" | "annotator" */
+    role: text("role").notNull().default("annotator"),
     name: text("name"),
     image: text("image"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check("profiles_role_check", sql`${t.role} IN ('admin', 'expert')`)]
+  (t) => [check("profiles_role_check", sql`${t.role} IN ('superadmin', 'admin', 'annotator')`)]
 );
 
 export const expertProfiles = pgTable(

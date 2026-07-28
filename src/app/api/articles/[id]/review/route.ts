@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
 import { compensationSurveyResponses } from "@/db/compensation-survey";
-import { eq, and, asc, inArray, lte } from "drizzle-orm";
+import { eq, and, asc, inArray, lte, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { getSignedUrl } from "@/lib/supabase-storage";
@@ -452,105 +452,95 @@ export const POST = requireExpert(async (req, session, context) => {
   }
 
   const now = new Date();
+  let reviewId = "";
 
-  // Upsert review record
-  const [existing] = await db
-    .select()
-    .from(reviews)
-    .where(
-      and(
-        eq(reviews.assignmentId, assignment.id),
-        eq(reviews.articleId, articleId),
-        paragraphId ? eq(reviews.paragraphId, paragraphId) : eq(reviews.status, "draft")
-      )
-    );
+  await db.transaction(async (tx: any) => {
+    const [existing] = await tx
+      .select()
+      .from(reviews)
+      .where(
+        and(
+          eq(reviews.assignmentId, assignment.id),
+          eq(reviews.articleId, articleId),
+          paragraphId ? eq(reviews.paragraphId, paragraphId) : isNull(reviews.paragraphId)
+        )
+      );
 
-  let reviewId: string;
-
-  if (existing) {
-    reviewId = existing.id;
-    await db
-      .update(reviews)
-      .set({ status: "completed", submittedAt: now, updatedAt: now })
-      .where(eq(reviews.id, reviewId));
-  } else {
-    reviewId = createId();
-    await db.insert(reviews).values({
-      id: reviewId,
-      assignmentId: assignment.id,
-      articleId,
-      expertId: session.user.id,
-      paragraphId: paragraphId ?? null,
-      status: "completed",
-      submittedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Replace scores: delete old, insert new
-  if (existing) {
-    // Delete existing scores via raw filter (drizzle doesn't have deleteWhere easily chained)
-    const oldScores = await db
-      .select({ id: reviewScores.id })
-      .from(reviewScores)
-      .where(eq(reviewScores.reviewId, reviewId));
-    for (const s of oldScores) {
-      await db.delete(reviewScores).where(eq(reviewScores.id, s.id));
-    }
-  }
-
-  if (scores.length > 0) {
-    await db.insert(reviewScores).values(
-      scores.map((s) => ({
-        id: createId(),
-        reviewId,
-        criterionId: s.criterionId,
-        score: s.score,
-        reason: s.reason ?? null,
+    if (existing) {
+      reviewId = existing.id;
+      await tx
+        .update(reviews)
+        .set({ status: "completed", submittedAt: now, updatedAt: now })
+        .where(eq(reviews.id, reviewId));
+    } else {
+      reviewId = createId();
+      await tx.insert(reviews).values({
+        id: reviewId,
+        assignmentId: assignment.id,
+        articleId,
+        expertId: session.user.id,
+        paragraphId: paragraphId ?? null,
+        status: "completed",
+        submittedAt: now,
         createdAt: now,
         updatedAt: now,
-      }))
-    );
-  }
-
-  // Upsert claim ratings — ON CONFLICT (assignment_id, section_id, claim_idx) DO UPDATE verdict + updated_at.
-  // Pass explicit createdAt/updatedAt so the schema's .defaultNow() (which emits PG `now()`) doesn't fire on SQLite.
-  if (parsedClaimRatings.length > 0) {
-    for (const cr of parsedClaimRatings) {
-      const ts = new Date();
-      await db
-        .insert(claimRatings)
-        .values({
-          id: createId(),
-          assignmentId: assignment.id,
-          expertId: session.user.id,
-          sectionId: cr.sectionId,
-          claimIdx: cr.claimIdx,
-          verdict: cr.verdict,
-          createdAt: ts,
-          updatedAt: ts,
-        })
-        .onConflictDoUpdate({
-          target: [claimRatings.assignmentId, claimRatings.sectionId, claimRatings.claimIdx],
-          set: {
-            verdict: sql`EXCLUDED.verdict`,
-            updatedAt: ts,
-          },
-        });
+      });
     }
-  }
 
-  // Mark assignment as completed (and article)
-  await db
-    .update(assignments)
-    .set({ status: "completed", completedAt: Date.now(), updatedAt: Date.now() })
-    .where(eq(assignments.id, assignment.id));
+    const oldScores = await tx.select({ id: reviewScores.id }).from(reviewScores).where(eq(reviewScores.reviewId, reviewId));
+    for (const s of oldScores) {
+      await tx.delete(reviewScores).where(eq(reviewScores.id, s.id));
+    }
 
-  await db
-    .update(articles)
-    .set({ status: "completed", updatedAt: Date.now() })
-    .where(eq(articles.id, articleId));
+    if (scores.length > 0) {
+      await tx.insert(reviewScores).values(
+        scores.map((s) => ({
+          id: createId(),
+          reviewId,
+          criterionId: s.criterionId,
+          score: s.score,
+          reason: s.reason ?? null,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      );
+    }
+
+    if (parsedClaimRatings.length > 0) {
+      for (const cr of parsedClaimRatings) {
+        const ts = new Date();
+        await tx
+          .insert(claimRatings)
+          .values({
+            id: createId(),
+            assignmentId: assignment.id,
+            expertId: session.user.id,
+            sectionId: cr.sectionId,
+            claimIdx: cr.claimIdx,
+            verdict: cr.verdict,
+            createdAt: ts,
+            updatedAt: ts,
+          })
+          .onConflictDoUpdate({
+            target: [claimRatings.assignmentId, claimRatings.sectionId, claimRatings.claimIdx],
+            set: {
+              verdict: sql`EXCLUDED.verdict`,
+              updatedAt: ts,
+            },
+          });
+      }
+    }
+
+    await tx
+      .update(assignments)
+      .set({ status: "completed", completedAt: Date.now(), updatedAt: Date.now() })
+      .where(eq(assignments.id, assignment.id));
+
+    await tx
+      .update(articles)
+      .set({ status: "completed", updatedAt: Date.now() })
+      .where(eq(articles.id, articleId));
+  });
 
   // ── Batch completion check (for compensation survey trigger) ──
   let batchCompleted = false;

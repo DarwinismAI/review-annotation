@@ -334,7 +334,7 @@ export default function ReviewPage({
           const session = sessionRes.ok
             ? ((await sessionRes.json()) as { role?: string } | null)
             : null;
-          if (session?.role === "admin") {
+          if (session?.role === "admin" || session?.role === "superadmin") {
             window.location.replace(`/admin/articles/${id}/preview`);
             return;
           }

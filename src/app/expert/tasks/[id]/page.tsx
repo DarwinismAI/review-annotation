@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ interface TaskDetail {
   internalRowId: number;
   detailFields: Record<string, unknown>;
   metrics: Array<{ id: string; key: string; label: string; description: string | null; scale: { values: string[] }; required: boolean }>;
-  existingValues: Record<string, { value: string; note: string | null }>;
+  existingValues: Record<string, { value: string | null; note: string | null }>;
 }
 
 export default function ExpertTaskDetailPage() {
@@ -23,38 +23,117 @@ export default function ExpertTaskDetailPage() {
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const loadedRef = useRef(false);
+  const changeVersionRef = useRef(0);
+
+  function markDirty() {
+    if (task?.status === "completed") return;
+    changeVersionRef.current += 1;
+    setDirty(true);
+  }
 
   useEffect(() => {
-    fetch(`/api/annotator/tasks/${taskId}`)
-      .then((response) => response.json())
+    setLoading(true);
+    fetch(`/api/annotator/tasks/${taskId}`, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Không tải được task");
+        return payload;
+      })
       .then((payload) => {
         const loadedTask = payload.task as TaskDetail;
         setTask(loadedTask);
-        setValues(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.value])));
+        setValues(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.value ?? ""])));
         setNotes(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.note ?? ""])));
+        setDirty(false);
+        loadedRef.current = true;
       })
-      .catch(() => setStatus("Không tải được task"));
+      .catch((err) => setStatus(err instanceof Error ? err.message : "Không tải được task"))
+      .finally(() => setLoading(false));
   }, [taskId]);
+
+  useEffect(() => {
+    if (!task || task.status === "completed" || !loadedRef.current || !dirty || submitting) return;
+    const timer = window.setTimeout(async () => {
+      const saveVersion = changeVersionRef.current;
+      setSaving(true);
+      try {
+        const response = await fetch(`/api/annotator/tasks/${taskId}/draft`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ values, notes }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setStatus(payload.metricId ? `${payload.error}: ${payload.metricId}` : payload.error ?? "Lưu nháp thất bại");
+          return;
+        }
+        if (changeVersionRef.current === saveVersion) setDirty(false);
+        setStatus(
+          payload.savedAt
+            ? `Đã lưu nháp ${new Date(payload.savedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`
+            : "Đã lưu"
+        );
+        setTask((current) => (current && current.status === "assigned" ? { ...current, status: "in_progress" } : current));
+      } catch {
+        setStatus("Lưu nháp thất bại");
+      } finally {
+        setSaving(false);
+      }
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [dirty, notes, submitting, task, taskId, values]);
+
+  useEffect(() => {
+    function warn(event: BeforeUnloadEvent) {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   async function submit() {
     setStatus("");
-    const response = await fetch(`/api/annotator/tasks/${taskId}/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ values, notes }),
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatus(payload.metricId ? `${payload.error}: ${payload.metricId}` : payload.error ?? "Submit thất bại");
+    if (task?.status === "completed") {
+      setStatus("Task đã completed");
       return;
     }
-    setStatus("Đã submit");
-    setTask((current) => (current ? { ...current, status: payload.status } : current));
+    setSubmitting(true);
+    try {
+      const response = await fetch(`/api/annotator/tasks/${taskId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values, notes }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setStatus(payload.metricId ? `${payload.error}: ${payload.metricId}` : payload.error ?? "Submit thất bại");
+        return;
+      }
+      setDirty(false);
+      changeVersionRef.current += 1;
+      setStatus("Đã submit");
+      setTask((current) => (current ? { ...current, status: payload.status } : current));
+    } catch {
+      setStatus("Submit thất bại");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  if (!task) {
+  if (loading) {
     return <div className="text-sm text-slate-500">Đang tải task...</div>;
+  }
+  if (!task) {
+    return <div className="text-sm text-red-600">{status || "Không tải được task"}</div>;
   }
 
   return (
@@ -67,8 +146,8 @@ export default function ExpertTaskDetailPage() {
             <Badge variant={task.status === "completed" ? "success" : "secondary"}>{task.status}</Badge>
           </div>
         </div>
-        <Button type="button" onClick={submit}>
-          Submit
+        <Button type="button" onClick={submit} disabled={task.status === "completed" || submitting || saving}>
+          {submitting ? "Đang submit..." : "Submit"}
         </Button>
       </div>
 
@@ -99,7 +178,11 @@ export default function ExpertTaskDetailPage() {
                     key={option}
                     type="button"
                     variant={values[metric.id] === option ? "default" : "outline"}
-                    onClick={() => setValues((current) => ({ ...current, [metric.id]: option }))}
+                    disabled={task.status === "completed"}
+                    onClick={() => {
+                      setValues((current) => ({ ...current, [metric.id]: option }));
+                      markDirty();
+                    }}
                   >
                     {option}
                   </Button>
@@ -108,7 +191,11 @@ export default function ExpertTaskDetailPage() {
             </div>
             <Textarea
               value={notes[metric.id] ?? ""}
-              onChange={(event) => setNotes((current) => ({ ...current, [metric.id]: event.target.value }))}
+              disabled={task.status === "completed"}
+              onChange={(event) => {
+                setNotes((current) => ({ ...current, [metric.id]: event.target.value }));
+                markDirty();
+              }}
               className="mt-3"
               placeholder="Ghi chú"
             />
@@ -116,7 +203,7 @@ export default function ExpertTaskDetailPage() {
         ))}
       </section>
 
-      {status && <div className="text-sm text-slate-600">{status}</div>}
+      {(status || saving) && <div className="text-sm text-slate-600">{saving ? "Đang lưu nháp..." : status}</div>}
     </div>
   );
 }

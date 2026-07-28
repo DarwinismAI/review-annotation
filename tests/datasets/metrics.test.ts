@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateMetricConfig, validateMetricSubmission } from "../../src/lib/datasets/metrics";
+import { validateDraftMetricSubmission, validateMetricConfig, validateMetricSubmission } from "../../src/lib/datasets/metrics";
 
 const config = validateMetricConfig([
   {
@@ -38,4 +38,25 @@ assert.deepEqual(
     values: { unassigned_metric: "Pass" },
   }),
   { ok: false, reason: "UNASSIGNED_METRIC", metricId: "unassigned_metric" },
+);
+
+assert.deepEqual(
+  validateDraftMetricSubmission({
+    assignedMetricIds: ["policy_violation", "implicit_risk"],
+    metrics: [
+      { id: "policy_violation", scale: { values: ["Failed", "Pass"] } },
+      { id: "implicit_risk", scale: { values: ["Failed", "Pass"] } },
+    ],
+    values: { policy_violation: "Pass" },
+  }),
+  { ok: true },
+);
+
+assert.deepEqual(
+  validateDraftMetricSubmission({
+    assignedMetricIds: ["policy_violation"],
+    metrics: [{ id: "policy_violation", scale: { values: ["Failed", "Pass"] } }],
+    values: { policy_violation: "5" },
+  }),
+  { ok: false, reason: "INVALID_METRIC_VALUE", metricId: "policy_violation" },
 );

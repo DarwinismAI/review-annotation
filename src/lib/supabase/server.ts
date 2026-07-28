@@ -3,6 +3,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createSupabase } from "@supabase/supabase-js";
 import { isLocalDevelopment } from "@/lib/local-dev";
+import { isAdminRole, normalizeRole, type AppRole } from "@/lib/roles";
+export type { AppRole } from "@/lib/roles";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY!;
@@ -40,8 +42,6 @@ export function getSupabaseAdmin() {
   });
 }
 
-export type AppRole = "admin" | "expert";
-
 export interface AppSession {
   userId: string;
   email: string;
@@ -54,14 +54,20 @@ export async function getSession(): Promise<AppSession | null> {
   // ── Local SQLite dev bypass ──
   if (isLocalDevelopment()) {
     const cookieStore = await cookies();
-    const cookieRole = cookieStore.get("dev_role")?.value as AppRole | undefined;
-    if (cookieRole === "admin" || cookieRole === "expert") {
-      const devId = cookieRole === "expert"
-        ? "00000000-0000-0000-0000-000000000002"
-        : "00000000-0000-0000-0000-000000000001";
-      const devEmail = cookieRole === "expert"
-        ? "expert@expert-review.local"
-        : "admin@expert-review.local";
+    const cookieRole = normalizeRole(cookieStore.get("dev_role")?.value);
+    if (cookieRole) {
+      const devId =
+        cookieRole === "annotator"
+          ? "00000000-0000-0000-0000-000000000002"
+          : cookieRole === "superadmin"
+            ? "00000000-0000-0000-0000-000000000099"
+            : "00000000-0000-0000-0000-000000000001";
+      const devEmail =
+        cookieRole === "annotator"
+          ? "annotator@expert-review.local"
+          : cookieRole === "superadmin"
+            ? "superadmin@expert-review.local"
+            : "admin@expert-review.local";
       return { userId: devId, email: devEmail, name: null, role: cookieRole };
     }
     return null;
@@ -81,7 +87,7 @@ export async function getSession(): Promise<AppSession | null> {
     userId: user.id,
     email: profile.email,
     name: (profile.name as string | null) ?? null,
-    role: profile.role as AppRole,
+    role: normalizeRole(profile.role) ?? "annotator",
   };
 }
 
@@ -94,6 +100,6 @@ export async function requireSession(): Promise<AppSession> {
 
 export async function requireRole(role: AppRole): Promise<AppSession> {
   const session = await requireSession();
-  if (session.role !== role) throw new Error("FORBIDDEN");
+  if (role === "admin" ? !isAdminRole(session.role) : session.role !== role) throw new Error("FORBIDDEN");
   return session;
 }

@@ -17,6 +17,7 @@ const ADMIN_NAV = [
   { href: "/admin/datasets", label: "Datasets", icon: TableProperties },
   { href: "/admin/batches", label: "Đợt upload", icon: Package },
   { href: "/admin/experts", label: "Annotator", icon: Users },
+  { href: "/admin/members", label: "Phân quyền", icon: Users },
   { href: "/admin/rubrics", label: "Rubric", icon: ClipboardList },
 ];
 
@@ -28,11 +29,17 @@ const EXPERT_NAV = [
 
 interface AppMobileNavProps {
   variant: "admin" | "expert";
+  role?: string;
 }
 
-export function AppMobileNav({ variant }: AppMobileNavProps) {
+export function AppMobileNav({ variant, role }: AppMobileNavProps) {
   const pathname = usePathname();
-  const items = variant === "admin" ? ADMIN_NAV : EXPERT_NAV;
+  const items =
+    variant === "admin" && role !== "superadmin"
+      ? ADMIN_NAV.filter((item) => item.href !== "/admin/members")
+      : variant === "admin"
+        ? ADMIN_NAV
+        : EXPERT_NAV;
 
   return (
     <nav

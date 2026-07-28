@@ -1,6 +1,7 @@
 "use client";
 /** Browser auth helpers for pre-created Supabase accounts. */
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { normalizeRole, type AppRole } from "@/lib/roles";
 
 export async function signOut() {
   const supabase = getSupabaseBrowser();
@@ -29,7 +30,7 @@ export interface ClientSessionUser {
   id: string;
   email: string;
   name: string | null;
-  role: "admin" | "expert";
+  role: AppRole;
 }
 
 export async function getSessionUser(): Promise<ClientSessionUser | null> {
@@ -55,10 +56,12 @@ export async function getSessionUser(): Promise<ClientSessionUser | null> {
     .single();
 
   if (!profile) return null;
+  const role = normalizeRole(profile.role);
+  if (!role) return null;
   return {
     id: user.id,
     email: profile.email,
     name: (profile.name as string | null) ?? null,
-    role: profile.role as "admin" | "expert",
+    role,
   };
 }

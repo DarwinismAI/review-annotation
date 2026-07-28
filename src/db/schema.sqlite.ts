@@ -14,7 +14,7 @@ import { createId } from "@paralleldrive/cuid2";
 export const profiles = sqliteTable("profiles", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
-  role: text("role", { enum: ["admin", "expert"] }).notNull().default("expert"),
+  role: text("role", { enum: ["superadmin", "admin", "annotator"] }).notNull().default("annotator"),
   name: text("name"),
   image: text("image"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),

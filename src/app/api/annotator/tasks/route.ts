@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics, datasetRows, datasets } from "@/db/datasets";
 import { requireExpert } from "@/lib/auth-middleware";
@@ -34,10 +34,10 @@ export const GET = requireExpert(async (_req, session) => {
     .innerJoin(datasetRows, eq(annotationAssignments.rowId, datasetRows.id))
     .where(eq(annotationAssignments.annotatorId, session.user.id));
 
-  const allMetricIds = Array.from(new Set(assignments.flatMap((assignment: any) => assignment.metricIds as string[])));
+  const allMetricIds: string[] = Array.from(new Set(assignments.flatMap((assignment: any) => assignment.metricIds as string[])));
   const metrics =
     allMetricIds.length > 0
-      ? await db.select({ id: annotationMetrics.id, label: annotationMetrics.label }).from(annotationMetrics)
+      ? await db.select({ id: annotationMetrics.id, label: annotationMetrics.label }).from(annotationMetrics).where(inArray(annotationMetrics.id, allMetricIds))
       : [];
   const metricLabels = new Map(metrics.map((metric: any) => [metric.id, metric.label]));
 

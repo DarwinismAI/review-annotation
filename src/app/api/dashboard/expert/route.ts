@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth-middleware";
 import { db } from "@/db/client";
 import { articles, assignments, batches } from "@/db/schema";
 import { timeEvents } from "@/db/time-events";
+import { isAdminRole } from "@/lib/roles";
 
 /**
  * GET /api/dashboard/expert
@@ -13,7 +14,7 @@ import { timeEvents } from "@/db/time-events";
  *   (powers the "Xem góc nhìn Chuyên gia" toggle in the admin sidebar).
  */
 export const GET = requireAuth(async (req: NextRequest, session) => {
-  if (session.user.role === "admin") {
+  if (isAdminRole(session.user.role)) {
     return adminPreview();
   }
 

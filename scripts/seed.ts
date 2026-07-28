@@ -67,6 +67,7 @@ async function main() {
   if (!adminPassword || !expertPassword) {
     throw new Error("SEED_ADMIN_PASSWORD and SEED_EXPERT_PASSWORD are required");
   }
+  const superadminPassword = process.env.SEED_SUPERADMIN_PASSWORD ?? adminPassword;
 
   const supa = createSupabaseAdmin();
   const { db, close } = createDb();
@@ -77,6 +78,12 @@ async function main() {
   // 1. Users
   const users = [
     {
+      email: "superadmin@example.com",
+      name: "Superadmin",
+      role: "superadmin" as const,
+      password: superadminPassword,
+    },
+    {
       email: "admin@example.com",
       name: "Quản trị viên",
       role: "admin" as const,
@@ -85,19 +92,19 @@ async function main() {
     {
       email: "lan@example.com",
       name: "Nguyễn Thị Lan",
-      role: "expert" as const,
+      role: "annotator" as const,
       password: expertPassword,
     },
     {
       email: "minh@example.com",
       name: "Trần Văn Minh",
-      role: "expert" as const,
+      role: "annotator" as const,
       password: expertPassword,
     },
     {
       email: "huong@example.com",
       name: "Lê Thị Hương",
-      role: "expert" as const,
+      role: "annotator" as const,
       password: expertPassword,
     },
   ];
@@ -117,8 +124,9 @@ async function main() {
   const minhId = userIds.get("minh@example.com")!;
   const huongId = userIds.get("huong@example.com")!;
 
+  console.log(`  · superadmin: ${userIds.get("superadmin@example.com")!}`);
   console.log(`  · admin: ${adminId}`);
-  console.log(`  · 3 experts created/reused`);
+  console.log(`  · 3 annotators created/reused`);
 
   // 2. Expert profiles (idempotent via userId unique constraint)
   const experts = [

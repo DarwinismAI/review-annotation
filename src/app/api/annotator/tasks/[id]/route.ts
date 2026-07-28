@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics, annotationResults, datasetRows, datasets } from "@/db/datasets";
 import { requireExpert } from "@/lib/auth-middleware";
@@ -27,6 +27,7 @@ export const GET = requireExpert(async (_req, session, context) => {
         status: annotationAssignments.status,
         annotatorId: annotationAssignments.annotatorId,
         rowId: annotationAssignments.rowId,
+        datasetId: annotationAssignments.datasetId,
         metricIds: annotationAssignments.metricIds,
         datasetName: datasets.name,
         displayConfig: datasets.displayConfig,
@@ -49,11 +50,11 @@ export const GET = requireExpert(async (_req, session, context) => {
       ? await db
           .select()
           .from(annotationMetrics)
-          .where(eq(annotationMetrics.datasetId, (await db.select({ datasetId: annotationAssignments.datasetId }).from(annotationAssignments).where(eq(annotationAssignments.id, assignmentId)))[0].datasetId))
+          .where(inArray(annotationMetrics.id, metricIds))
       : [];
   const metricSet = new Set(metricIds);
   const resultRows = await db.select().from(annotationResults).where(eq(annotationResults.assignmentId, assignmentId));
-  const existingValues = Object.fromEntries(resultRows.map((result: any) => [result.metricId, { value: result.value, note: result.note }]));
+  const existingValues = Object.fromEntries(resultRows.map((result: any) => [result.metricId, { value: result.value ?? "", note: result.note }]));
   const displayConfig = assignment.displayConfig as { listFields: string[]; detailFields: string[] };
 
   return NextResponse.json({

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/supabase/server";
+import { isAdminRole, isAnnotatorRole } from "@/lib/roles";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
 import { AppMobileNav } from "./app-mobile-nav";
@@ -30,23 +31,23 @@ export async function AppShell({ children, variant }: AppShellProps) {
   if (!session) redirect("/login");
 
   // Role gate
-  if (variant === "admin" && session.role !== "admin") {
+  if (variant === "admin" && !isAdminRole(session.role)) {
     redirect("/expert/dashboard");
   }
-  if (variant === "expert" && session.role !== "expert") {
+  if (variant === "expert" && !isAnnotatorRole(session.role)) {
     redirect("/admin/dashboard");
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <AppSidebar variant={variant} />
+        <AppSidebar variant={variant} role={session.role} />
       <div className="flex-1 flex flex-col min-w-0">
         <AppHeader />
         <main className="flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 lg:pb-6">
           {children}
         </main>
       </div>
-      <AppMobileNav variant={variant} />
+      <AppMobileNav variant={variant} role={session.role} />
     </div>
   );
 }

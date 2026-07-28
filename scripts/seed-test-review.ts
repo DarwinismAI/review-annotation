@@ -1,6 +1,6 @@
 /**
  * Seed a real, end-to-end reviewable batch for manual/automated QA:
- *   - test expert user (expert@expert-review.local) — pre-created Supabase Auth account
+ *   - test annotator user (annotator@expert-review.local) — pre-created Supabase Auth account
  *   - one batch (`E2E Review Seed`) with 1 article backed by a valid PDF in Supabase Storage
  *   - ensures a law rubric exists (reuses `scripts/seed.ts` output when available)
  *   - creates an assignment linking the expert to the article
@@ -17,7 +17,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as schema from "../src/db/schema";
 
-const EXPERT_EMAIL = "expert@expert-review.local";
+const EXPERT_EMAIL = "annotator@expert-review.local";
 const EXPERT_NAME = "Chuyên gia Test";
 const ADMIN_EMAIL = "admin@expert-review.local";
 const BATCH_NAME = "E2E Review Seed";
@@ -99,7 +99,7 @@ async function findOrCreateAuthUser(
   email: string,
   password: string,
   name: string,
-  role: "admin" | "expert"
+  role: "admin" | "annotator"
 ): Promise<string> {
   const { data: list, error: listErr } = await supa.auth.admin.listUsers({ perPage: 1000 });
   if (listErr) throw listErr;
@@ -157,7 +157,7 @@ async function main() {
     EXPERT_EMAIL,
     expertPassword,
     EXPERT_NAME,
-    "expert"
+    "annotator"
   );
   console.log(`  · expert: ${EXPERT_EMAIL} (${expertId})`);
 

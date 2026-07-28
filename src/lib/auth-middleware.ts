@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "./auth";
-
-type Role = "admin" | "expert";
+import { isAdminRole, isAnnotatorRole, isSuperAdminRole, type AppRole } from "@/lib/roles";
 
 interface SessionUser {
   id: string;
@@ -41,7 +40,8 @@ async function getSession(req: NextRequest): Promise<GuardedSession | null> {
  * Next.js always passes a context object; params may be an empty object for
  * non-dynamic routes.
  */
-async function resolveContext(ctx: RouteContext): Promise<ResolvedContext> {
+async function resolveContext(ctx?: RouteContext): Promise<ResolvedContext> {
+  if (!ctx?.params) return { params: {} };
   const params = await ctx.params;
   return { params };
 }
@@ -65,7 +65,7 @@ export function requireAdmin(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
     const session = await getSession(req);
     if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
-    if (session.user.role !== "admin") {
+    if (!isAdminRole(session.user.role)) {
       return errJson(403, "FORBIDDEN", "Chỉ admin mới có quyền thực hiện thao tác này");
     }
     return handler(req, session, await resolveContext(context));
@@ -73,20 +73,35 @@ export function requireAdmin(handler: Handler) {
 }
 
 /**
- * Wrap a route handler requiring `expert` role.
+ * Wrap a route handler requiring `superadmin` role.
+ */
+export function requireSuperAdmin(handler: Handler) {
+  return async (req: NextRequest, context: RouteContext) => {
+    const session = await getSession(req);
+    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
+    if (!isSuperAdminRole(session.user.role)) {
+      return errJson(403, "FORBIDDEN", "Chỉ superadmin mới có quyền thực hiện thao tác này");
+    }
+    return handler(req, session, await resolveContext(context));
+  };
+}
+
+/**
+ * Wrap a route handler requiring `annotator` role.
  */
 export function requireExpert(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
     const session = await getSession(req);
     if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
-    if (session.user.role !== "expert") {
-      return errJson(403, "FORBIDDEN", "Chỉ chuyên gia mới có quyền thực hiện thao tác này");
+    if (!isAnnotatorRole(session.user.role)) {
+      return errJson(403, "FORBIDDEN", "Chỉ annotator mới có quyền thực hiện thao tác này");
     }
     return handler(req, session, await resolveContext(context));
   };
 }
 
 /** Check role without wrapping — useful inside composite handlers. */
-export function hasRole(session: GuardedSession, role: Role): boolean {
+export function hasRole(session: GuardedSession, role: AppRole): boolean {
+  if (role === "admin") return isAdminRole(session.user.role);
   return session.user.role === role;
 }

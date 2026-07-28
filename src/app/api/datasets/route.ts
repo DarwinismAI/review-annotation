@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationMetrics, datasetImports, datasetRows, datasets } from "@/db/datasets";
@@ -39,15 +39,21 @@ function getSourceId(row: JsonRecord): string | null {
 
 export const GET = requireAdmin(async () => {
   const allDatasets = await db.select().from(datasets).orderBy(desc(datasets.createdAt));
-  const allRows = await db.select({ datasetId: datasetRows.datasetId }).from(datasetRows);
-  const allMetrics = await db.select({ datasetId: annotationMetrics.datasetId }).from(annotationMetrics);
+  const rowCounts = await db
+    .select({ datasetId: datasetRows.datasetId, total: count() })
+    .from(datasetRows)
+    .groupBy(datasetRows.datasetId);
+  const metricCounts = await db
+    .select({ datasetId: annotationMetrics.datasetId, total: count() })
+    .from(annotationMetrics)
+    .groupBy(annotationMetrics.datasetId);
   const allImports = await db.select().from(datasetImports).orderBy(desc(datasetImports.createdAt));
 
   const rowCount = new Map<string, number>();
-  for (const row of allRows) rowCount.set(row.datasetId, (rowCount.get(row.datasetId) ?? 0) + 1);
+  for (const row of rowCounts) rowCount.set(row.datasetId, row.total);
 
   const metricCount = new Map<string, number>();
-  for (const metric of allMetrics) metricCount.set(metric.datasetId, (metricCount.get(metric.datasetId) ?? 0) + 1);
+  for (const metric of metricCounts) metricCount.set(metric.datasetId, metric.total);
 
   const latestImport = new Map<string, string>();
   for (const item of allImports) {

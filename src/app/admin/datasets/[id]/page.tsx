@@ -30,23 +30,38 @@ export default function DatasetDetailPage() {
   const [rows, setRows] = useState<DatasetRow[]>([]);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
-    const [detailResponse, rowsResponse] = await Promise.all([
-      fetch(`/api/datasets/${datasetId}`),
-      fetch(`/api/datasets/${datasetId}/rows?pageSize=200`),
-    ]);
-    const [detailPayload, rowsPayload] = await Promise.all([detailResponse.json(), rowsResponse.json()]);
-    setDetail(detailPayload);
-    setRows(rowsPayload.rows ?? []);
+    setLoading(true);
+    setLoadError("");
+    try {
+      const [detailResponse, rowsResponse] = await Promise.all([
+        fetch(`/api/datasets/${datasetId}`, { cache: "no-store" }),
+        fetch(`/api/datasets/${datasetId}/rows?pageSize=200`, { cache: "no-store" }),
+      ]);
+      const [detailPayload, rowsPayload] = await Promise.all([detailResponse.json(), rowsResponse.json()]);
+      if (!detailResponse.ok) throw new Error(detailPayload.error ?? "Không tải được dataset");
+      if (!rowsResponse.ok) throw new Error(rowsPayload.error ?? "Không tải được rows");
+      setDetail(detailPayload);
+      setRows(rowsPayload.rows ?? []);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Không tải được dataset");
+    } finally {
+      setLoading(false);
+    }
   }, [datasetId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  if (!detail) {
+  if (loading) {
     return <div className="text-sm text-slate-500">Đang tải dataset...</div>;
+  }
+  if (!detail) {
+    return <div className="text-sm text-red-600">{loadError || "Không tải được dataset"}</div>;
   }
 
   return (

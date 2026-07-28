@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationResults, datasetRows, datasets } from "@/db/datasets";
 import { profiles } from "@/db/schema";
@@ -29,9 +29,14 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const dataset = (await db.select().from(datasets).where(eq(datasets.id, datasetId)))[0];
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
-  const allRows = await db.select().from(datasetRows).where(eq(datasetRows.datasetId, datasetId));
-  const sortedRows = allRows.sort((a: any, b: any) => a.internalRowId - b.internalRowId);
-  const pageRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
+  const [{ total }] = await db.select({ total: count() }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId));
+  const pageRows = await db
+    .select()
+    .from(datasetRows)
+    .where(eq(datasetRows.datasetId, datasetId))
+    .orderBy(asc(datasetRows.internalRowId))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
   const rowIds = pageRows.map((row: any) => row.id);
 
   const assignmentRows =
@@ -59,7 +64,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
             value: annotationResults.value,
           })
           .from(annotationResults)
-          .where(inArray(annotationResults.rowId, rowIds))
+          .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationResults.status, "completed")))
       : [];
 
   const assignmentsByRow = new Map<string, typeof assignmentRows>();
@@ -87,6 +92,6 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
         agreement: computeAgreement(resultsByRow.get(row.id) ?? []),
       };
     }),
-    total: sortedRows.length,
+    total,
   });
 });
