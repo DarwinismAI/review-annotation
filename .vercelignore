@@ -1,0 +1,7 @@
+seed_data/
+plans/
+exports/
+.claude/
+.omx/
+*.sqlite
+*.db

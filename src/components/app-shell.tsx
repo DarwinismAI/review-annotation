@@ -1,0 +1,52 @@
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/supabase/server";
+import { AppSidebar } from "./app-sidebar";
+import { AppHeader } from "./app-header";
+import { AppMobileNav } from "./app-mobile-nav";
+
+// ─── Props ─────────────────────────────────────────────────────────
+
+interface AppShellProps {
+  children: React.ReactNode;
+  /** "admin" | "expert" — determines sidebar nav items + role gate. */
+  variant: "admin" | "expert";
+}
+
+// ─── Component ─────────────────────────────────────────────────────
+
+/**
+ * Shared layout shell for admin + expert pages.
+ *
+ * - Server-side session check → redirects unauthenticated users to /login.
+ * - Role gate → mismatched role redirects to the correct dashboard.
+ * - Renders fixed sidebar (w-56) + top bar + scrollable content area.
+ *
+ * Pages that need full-viewport (e.g. the review split-panel) should NOT
+ * use this shell — they live under `/review/` with their own layout.
+ */
+export async function AppShell({ children, variant }: AppShellProps) {
+  const session = await getSession();
+
+  if (!session) redirect("/login");
+
+  // Role gate
+  if (variant === "admin" && session.role !== "admin") {
+    redirect("/expert/dashboard");
+  }
+  if (variant === "expert" && session.role !== "expert") {
+    redirect("/admin/dashboard");
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      <AppSidebar variant={variant} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <AppHeader />
+        <main className="flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 lg:pb-6">
+          {children}
+        </main>
+      </div>
+      <AppMobileNav variant={variant} />
+    </div>
+  );
+}

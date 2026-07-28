@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1776770117656,
+      "tag": "0000_regular_nightmare",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776835817944,
+      "tag": "0001_pink_energizer",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777110182017,
+      "tag": "0002_kind_pretty_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777795200000,
+      "tag": "0003_expert_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777881600000,
+      "tag": "0004_supabase_auth_swap",
+      "breakpoints": true
+    }
+  ]
+}

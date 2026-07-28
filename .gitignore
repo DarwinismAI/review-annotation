@@ -1,0 +1,34 @@
+.DS_Store
+node_modules/
+.env
+.env.local
+.env.*.local
+.dev.vars
+*.log
+.vscode/settings.json
+.idea/
+dist/
+.next/
+.vercel/
+.cloudflare/
+.wrangler/
+.pnpm-store/
+tsconfig.tsbuildinfo
+.vercel
+
+# Local dev database
+local.db
+local.db-shm
+local.db-wal
+local-build.db
+*.db
+*.db-shm
+*.db-wal
+
+# Uploads
+uploads/
+seed_data/
+
+supabase/.temp/
+test-results/
+migrations-sqlite/
