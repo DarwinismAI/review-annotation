@@ -59,13 +59,18 @@ export default function AdminDatasetsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-slate-500">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            )}
+            {loading &&
+              Array.from({ length: 6 }).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell><div className="h-4 w-48 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-4 w-28 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-4 w-12 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-4 w-14 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-4 w-40 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-5 w-16 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="ml-auto h-8 w-14 rounded bg-slate-100" /></TableCell>
+                </TableRow>
+              ))}
             {!loading && datasets.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-slate-500">

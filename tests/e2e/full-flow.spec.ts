@@ -30,6 +30,15 @@ const INITIAL_ROWS = [
     dims: { policy_decision: "allow" },
   },
 ];
+const E2E_METRICS = [
+  {
+    key: "policy_violation",
+    label: "Vi phạm chính sách",
+    scale: { values: ["Failed", "Pass"] },
+    required: true,
+    sortOrder: 0,
+  },
+];
 
 let createdDatasetId = "";
 
@@ -88,8 +97,8 @@ test.describe.serial("local-dev review annotation flows", () => {
     const errors = collectRuntimeErrors(page);
     await login(page, "superadmin@local.dev", "/admin");
     await page.goto("/admin/members");
-    await expect(page.getByRole("heading", { name: "Phân quyền member" })).toBeVisible();
-    await expect(page.getByText("Superadmin")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Thành viên" })).toBeVisible();
+    await expect(page.getByText("Superadmin", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Quản trị viên")).toBeVisible();
     await expect(page.getByText("Người gán nhãn").first()).toBeVisible();
     await assertPageHealth(page, testInfo, "superadmin-members-desktop");
@@ -103,15 +112,127 @@ test.describe.serial("local-dev review annotation flows", () => {
     const annotatorPage = await annotatorContext.newPage();
     await login(annotatorPage, "annotator@local.dev", "/annotator");
     await annotatorPage.goto("/admin/members");
-    await expect(annotatorPage).toHaveURL(/\/annotator\/dashboard/);
+    await expect(annotatorPage).toHaveURL(/\/annotator\/tasks/);
     await annotatorContext.close();
 
     const adminContext = await browser.newContext();
     const adminPage = await adminContext.newPage();
     await login(adminPage, "admin@local.dev", "/admin");
     await adminPage.goto("/annotator/tasks");
-    await expect(adminPage).toHaveURL(/\/admin\/dashboard/);
+    await expect(adminPage).toHaveURL(/\/admin\/datasets/);
     await adminContext.close();
+  });
+
+  test("legacy entry points redirect to the current workspaces", async ({ browser }) => {
+    const adminContext = await browser.newContext();
+    const adminPage = await adminContext.newPage();
+    await login(adminPage, "admin@local.dev", "/admin");
+
+    for (const [path, expected] of [
+      ["/", /\/admin\/datasets/],
+      ["/admin", /\/admin\/datasets/],
+      ["/admin/batches", /\/admin\/datasets/],
+      ["/admin/batches/new", /\/admin\/datasets\/new/],
+      ["/admin/batches/legacy-batch-id", /\/admin\/datasets/],
+      ["/admin/dashboard", /\/admin\/datasets/],
+      ["/admin/experts", /\/admin\/members/],
+    ] as const) {
+      await adminPage.goto(path);
+      await expect(adminPage).toHaveURL(expected);
+    }
+    await adminContext.close();
+
+    const annotatorContext = await browser.newContext();
+    const annotatorPage = await annotatorContext.newPage();
+    await login(annotatorPage, "annotator@local.dev", "/annotator");
+    await annotatorPage.goto("/annotator");
+    await expect(annotatorPage).toHaveURL(/\/annotator\/tasks/);
+    await annotatorPage.goto("/annotator/dashboard");
+    await expect(annotatorPage).toHaveURL(/\/annotator\/tasks/);
+    await annotatorContext.close();
+  });
+
+  test("admin cannot assign a dataset while chunked import is incomplete", async ({ page }) => {
+    await login(page, "admin@local.dev", "/admin");
+    const createResponse = await page.request.post("/api/datasets", {
+      data: {
+        name: `Partial Import Guard ${RUN_ID}`,
+        domain: "safety_compliance",
+        sourceFilename: "partial-import.jsonl",
+        rows: [INITIAL_ROWS[0]],
+        totalRows: 2,
+        schemaFingerprint: [
+          { path: "input", type: "string", sample: INITIAL_ROWS[0].input },
+          { path: "output", type: "string", sample: INITIAL_ROWS[0].output },
+        ],
+        listFields: ["input"],
+        detailFields: ["input", "output"],
+        metrics: E2E_METRICS,
+      },
+    });
+    expect(createResponse.ok()).toBeTruthy();
+    const { datasetId } = await createResponse.json();
+
+    const annotatorsResponse = await page.request.get("/api/annotators?status=active");
+    expect(annotatorsResponse.ok()).toBeTruthy();
+    const annotatorIds = ((await annotatorsResponse.json()).data as Array<{ userId: string }>).slice(0, 1).map((item) => item.userId);
+    expect(annotatorIds.length).toBe(1);
+
+    const detailResponse = await page.request.get(`/api/datasets/${datasetId}`);
+    expect(detailResponse.ok()).toBeTruthy();
+    const metricIds = ((await detailResponse.json()).metrics as Array<{ id: string }>).map((metric) => metric.id);
+    const assignResponse = await page.request.post(`/api/datasets/${datasetId}/assign`, {
+      data: {
+        scope: { type: "all" },
+        targetOverlap: 1,
+        metricIds,
+        annotatorIds,
+      },
+    });
+    expect(assignResponse.status()).toBe(409);
+    expect(await assignResponse.json()).toMatchObject({ error: "DATASET_NOT_READY" });
+
+    const readyCreateResponse = await page.request.post("/api/datasets", {
+      data: {
+        name: `Partial Append Guard ${RUN_ID}`,
+        domain: "safety_compliance",
+        sourceFilename: "ready-dataset.json",
+        rows: [INITIAL_ROWS[0]],
+        totalRows: 1,
+        schemaFingerprint: [
+          { path: "input", type: "string", sample: INITIAL_ROWS[0].input },
+          { path: "output", type: "string", sample: INITIAL_ROWS[0].output },
+        ],
+        listFields: ["input"],
+        detailFields: ["input", "output"],
+        metrics: E2E_METRICS,
+      },
+    });
+    expect(readyCreateResponse.ok()).toBeTruthy();
+    const readyDatasetId = (await readyCreateResponse.json()).datasetId;
+    const appendResponse = await page.request.post(`/api/datasets/${readyDatasetId}/imports`, {
+      data: {
+        filename: "partial-append.jsonl",
+        rows: [buildAppendRow(["input", "output"])],
+        totalRows: 2,
+        finalChunk: true,
+      },
+    });
+    expect(appendResponse.ok()).toBeTruthy();
+    expect(await appendResponse.json()).toMatchObject({ status: "importing" });
+
+    const readyDetailResponse = await page.request.get(`/api/datasets/${readyDatasetId}`);
+    const readyMetricIds = ((await readyDetailResponse.json()).metrics as Array<{ id: string }>).map((metric) => metric.id);
+    const partialAppendAssignResponse = await page.request.post(`/api/datasets/${readyDatasetId}/assign`, {
+      data: {
+        scope: { type: "all" },
+        targetOverlap: 1,
+        metricIds: readyMetricIds,
+        annotatorIds,
+      },
+    });
+    expect(partialAppendAssignResponse.status()).toBe(409);
+    expect(await partialAppendAssignResponse.json()).toMatchObject({ error: "DATASET_NOT_READY" });
   });
 
   test("admin can create a dataset, choose display fields, append rows, and assign tasks", async ({ page }, testInfo) => {
@@ -164,14 +285,14 @@ test.describe.serial("local-dev review annotation flows", () => {
     const requiredFields = detailPayload.dataset.requiredAppendFields as string[];
     expect(requiredFields.length).toBeGreaterThan(0);
 
-    await page.getByLabel("File JSON append").setInputFiles({
+    await page.getByLabel("File JSON/JSONL append").setInputFiles({
       name: "append-missing.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify([{}])),
     });
     await expect(page.getByText("input: thiếu 1 dòng")).toBeVisible();
 
-    await page.getByLabel("File JSON append").setInputFiles({
+    await page.getByLabel("File JSON/JSONL append").setInputFiles({
       name: "append-valid-extra.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify([buildAppendRow(requiredFields)])),
@@ -185,8 +306,9 @@ test.describe.serial("local-dev review annotation flows", () => {
     await expect(page.getByRole("dialog", { name: "Assign task cho annotator" })).toBeVisible();
     await page.getByRole("button", { name: "Cả dataset" }).click();
     await expect(page.getByLabel("Overlap")).toHaveValue("3");
+    await page.getByLabel("Số câu / annotator").fill("1");
     await page.getByRole("button", { name: "Xác nhận giao" }).click();
-    await expect(page.getByText(/Đã tạo \d+ task/)).toBeVisible();
+    await expect(page.getByText("Đã tạo 3 task")).toBeVisible();
     expect(unexpectedRuntimeErrors(errors)).toEqual([]);
   });
 
@@ -235,6 +357,13 @@ test.describe.serial("local-dev review annotation flows", () => {
       });
     }
 
+    await page.reload();
+    await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
+    for (let index = 0; index < taskDetail.metrics.length; index += 1) {
+      await expect(page.getByRole("button", { name: "Pass" }).nth(index)).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByLabel("Ghi chú").nth(index)).toHaveValue(`Playwright note ${index + 1}`);
+    }
+
     await page.getByRole("button", { name: "Submit" }).click();
     await expect(page.getByText("Đã submit")).toBeVisible();
     const completedResponse = await page.request.get(`/api/annotator/tasks/${task.id}`);
@@ -246,6 +375,13 @@ test.describe.serial("local-dev review annotation flows", () => {
         value: "Pass",
         note: `Playwright note ${index + 1}`,
       });
+    }
+    await page.reload();
+    await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
+    await expect(page.getByText("completed")).toBeVisible();
+    for (let index = 0; index < taskDetail.metrics.length; index += 1) {
+      await expect(page.getByRole("button", { name: "Pass" }).nth(index)).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByLabel("Ghi chú").nth(index)).toHaveValue(`Playwright note ${index + 1}`);
     }
     await assertPageHealth(page, testInfo, "annotator-task-detail-desktop");
     expect(errors).toEqual([]);

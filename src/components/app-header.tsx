@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { getSessionUser, signOut, type ClientSessionUser } from "@/lib/auth-client";
+import { signOut, type ClientSessionUser } from "@/lib/auth-client";
 import { ROLE_LABELS } from "@/lib/labels";
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -29,13 +28,8 @@ function roleLabel(role: string): string {
 
 // ─── Component ─────────────────────────────────────────────────────
 
-export function AppHeader() {
+export function AppHeader({ user }: { user: ClientSessionUser }) {
   const router = useRouter();
-  const [user, setUser] = useState<ClientSessionUser | null>(null);
-
-  useEffect(() => {
-    getSessionUser().then(setUser).catch(() => setUser(null));
-  }, []);
 
   async function handleLogout() {
     await signOut();
@@ -45,20 +39,16 @@ export function AppHeader() {
 
   return (
     <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-end px-6 shrink-0 gap-3">
-      {user && (
-        <>
-          <span className="text-sm text-slate-500 mr-auto">
-            {roleLabel(user.role)}
-          </span>
-          <div
-            className={`w-8 h-8 ${avatarBg(user.role)} rounded-full flex items-center justify-center`}
-          >
-            <span className="text-xs font-bold text-white">
-              {initials(user)}
-            </span>
-          </div>
-        </>
-      )}
+      <span className="text-sm text-slate-500 mr-auto">
+        {roleLabel(user.role)}
+      </span>
+      <div
+        className={`w-8 h-8 ${avatarBg(user.role)} rounded-full flex items-center justify-center`}
+      >
+        <span className="text-xs font-bold text-white">
+          {initials(user)}
+        </span>
+      </div>
       <button
         onClick={handleLogout}
         className="text-slate-400 hover:text-red-500 transition-colors"

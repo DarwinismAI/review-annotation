@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function LegacyExpertsRedirect() {
-  redirect("/admin/annotators");
+  redirect("/admin/members");
 }

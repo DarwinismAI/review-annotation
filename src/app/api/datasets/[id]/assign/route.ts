@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { expertProfiles, profiles } from "@/db/schema";
@@ -8,12 +8,15 @@ import { annotationAssignmentRuns, annotationAssignments, annotationMetrics, dat
 import { requireAdmin } from "@/lib/auth-middleware";
 import { buildMetricKey, planBalancedAssignments } from "@/lib/datasets/assignment";
 
+const ASSIGNMENT_INSERT_CHUNK_SIZE = 1000;
+
 const assignRequestSchema = z.object({
   scope: z.union([
     z.object({ type: z.literal("all") }),
     z.object({ type: z.literal("selected"), rowIds: z.array(z.string()).min(1) }),
   ]),
   targetOverlap: z.number().int().min(1).max(5),
+  maxRowsPerAnnotator: z.number().int().min(1).optional(),
   metricIds: z.array(z.string()).min(1),
   annotatorIds: z.array(z.string()).min(1),
 });
@@ -27,8 +30,11 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
     return NextResponse.json({ error: "INVALID_REQUEST", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const dataset = (await db.select({ id: datasets.id }).from(datasets).where(eq(datasets.id, datasetId)))[0];
+  const dataset = (await db.select({ id: datasets.id, status: datasets.status }).from(datasets).where(eq(datasets.id, datasetId)))[0];
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
+  if (dataset.status !== "ready") {
+    return NextResponse.json({ error: "DATASET_NOT_READY" }, { status: 409 });
+  }
 
   const metrics = await db
     .select({ id: annotationMetrics.id })
@@ -51,11 +57,12 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
 
   const rowQuery =
     parsed.data.scope.type === "all"
-      ? db.select({ id: datasetRows.id }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId))
+      ? db.select({ id: datasetRows.id }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId)).orderBy(asc(datasetRows.internalRowId))
       : db
           .select({ id: datasetRows.id })
           .from(datasetRows)
-          .where(and(eq(datasetRows.datasetId, datasetId), inArray(datasetRows.id, parsed.data.scope.rowIds)));
+          .where(and(eq(datasetRows.datasetId, datasetId), inArray(datasetRows.id, parsed.data.scope.rowIds)))
+          .orderBy(asc(datasetRows.internalRowId));
   const rows = await rowQuery;
   const rowIds = rows.map((row: any) => row.id);
 
@@ -75,6 +82,7 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
     annotatorIds,
     metricIds: parsed.data.metricIds,
     targetOverlap: parsed.data.targetOverlap,
+    maxRowsPerAnnotator: parsed.data.maxRowsPerAnnotator,
     existingAssignments: existingAssignments as any,
   });
 
@@ -88,6 +96,21 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
 
   const assignmentRunId = createId();
   const now = new Date();
+  const assignmentRows = plan.assignments.map((assignment) => ({
+    id: createId(),
+    assignmentRunId,
+    datasetId,
+    rowId: assignment.rowId,
+    annotatorId: assignment.annotatorId,
+    metricIds: assignment.metricIds,
+    metricKey,
+    targetOverlap: parsed.data.targetOverlap,
+    status: "assigned",
+    assignedAt: now,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }));
 
   await db.transaction(async (tx: any) => {
     await tx.insert(annotationAssignmentRuns).values({
@@ -100,23 +123,11 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
       createdAt: now,
     });
 
-    await tx.insert(annotationAssignments).values(
-      plan.assignments.map((assignment) => ({
-        id: createId(),
-        assignmentRunId,
-        datasetId,
-        rowId: assignment.rowId,
-        annotatorId: assignment.annotatorId,
-        metricIds: assignment.metricIds,
-        metricKey,
-        targetOverlap: parsed.data.targetOverlap,
-        status: "assigned",
-        assignedAt: now,
-        completedAt: null,
-        createdAt: now,
-        updatedAt: now,
-      })),
-    );
+    for (let offset = 0; offset < assignmentRows.length; offset += ASSIGNMENT_INSERT_CHUNK_SIZE) {
+      await tx
+        .insert(annotationAssignments)
+        .values(assignmentRows.slice(offset, offset + ASSIGNMENT_INSERT_CHUNK_SIZE));
+    }
   });
 
   return NextResponse.json({

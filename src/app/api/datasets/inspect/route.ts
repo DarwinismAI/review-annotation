@@ -15,7 +15,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
   }
 
   try {
-    const rows = parseDatasetRows(parsed.data.content);
+    const rows = parseDatasetRows(parsed.data.content, { filename: parsed.data.filename });
     return NextResponse.json({
       filename: parsed.data.filename,
       ...inspectDatasetRows(rows),

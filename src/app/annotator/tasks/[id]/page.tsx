@@ -177,6 +177,7 @@ export default function ExpertTaskDetailPage() {
                   <Button
                     key={option}
                     type="button"
+                    aria-pressed={values[metric.id] === option}
                     variant={values[metric.id] === option ? "default" : "outline"}
                     disabled={task.status === "completed"}
                     onClick={() => {

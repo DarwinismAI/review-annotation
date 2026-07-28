@@ -55,3 +55,18 @@ assert.deepEqual(validateAppendRows([{ input: "C" }, { label: { decision: "block
 assert.throws(() => parseDatasetRows("{\"input\":\"not-array\"}"), /JSON array/);
 assert.throws(() => parseDatasetRows("[]"), /empty/);
 assert.throws(() => parseDatasetRows("{"), /Invalid JSON/);
+
+const jsonlRows = parseDatasetRows(
+  [
+    JSON.stringify({ id: "jsonl-1", input: "A", label: { decision: "block" } }),
+    "",
+    JSON.stringify({ id: "jsonl-2", input: "B", label: { decision: "allow" } }),
+  ].join("\n"),
+  { filename: "sample.jsonl" },
+);
+assert.equal(jsonlRows.length, 2);
+assert.equal(jsonlRows[1].id, "jsonl-2");
+assert.throws(
+  () => parseDatasetRows(`${JSON.stringify({ input: "ok" })}\n{`, { filename: "bad.jsonl" }),
+  /Invalid JSONL at line 2/,
+);

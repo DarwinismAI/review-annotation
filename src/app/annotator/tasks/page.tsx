@@ -17,24 +17,29 @@ interface AnnotatorTask {
   metricLabels: string[];
 }
 
-export default function ExpertTasksPage() {
+export default function AnnotatorTasksPage() {
   const [tasks, setTasks] = useState<AnnotatorTask[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/annotator/tasks")
       .then((response) => response.json())
-      .then((payload) => setTasks(payload.tasks ?? []))
+      .then((payload) => {
+        setTasks(payload.tasks ?? []);
+        setTotal(payload.total ?? payload.tasks?.length ?? 0);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const listFields = Array.from(new Set(tasks.flatMap((task) => Object.keys(task.listFields))));
+  const visibleListFields = loading ? ["Dữ liệu"] : listFields;
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Task của tôi</h1>
-        <p className="text-sm text-slate-500">Các dòng dataset được giao để chấm metric.</p>
+        <p className="text-sm text-slate-500">Đang hiển thị {tasks.length} / {total} task mới nhất.</p>
       </div>
 
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
@@ -43,7 +48,7 @@ export default function ExpertTasksPage() {
             <TableRow>
               <TableHead>Dataset</TableHead>
               <TableHead>ID</TableHead>
-              {listFields.map((field) => (
+              {visibleListFields.map((field) => (
                 <TableHead key={field}>{field}</TableHead>
               ))}
               <TableHead>Metrics</TableHead>
@@ -52,16 +57,20 @@ export default function ExpertTasksPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={listFields.length + 5} className="text-slate-500">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            )}
+            {loading &&
+              Array.from({ length: 6 }).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell><div className="h-4 w-48 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-4 w-12 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-4 w-40 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-5 w-24 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="h-5 w-20 rounded bg-slate-100" /></TableCell>
+                  <TableCell><div className="ml-auto h-8 w-14 rounded bg-slate-100" /></TableCell>
+                </TableRow>
+              ))}
             {!loading && tasks.length === 0 && (
               <TableRow>
-                <TableCell colSpan={listFields.length + 5} className="text-slate-500">
+                <TableCell colSpan={visibleListFields.length + 5} className="text-slate-500">
                   Chưa có task.
                 </TableCell>
               </TableRow>

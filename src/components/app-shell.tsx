@@ -19,7 +19,7 @@ interface AppShellProps {
  * Shared layout shell for admin + annotator pages.
  *
  * - Server-side session check → redirects unauthenticated users to /login.
- * - Role gate → mismatched role redirects to the correct dashboard.
+ * - Role gate → mismatched role redirects to the correct workspace entry.
  * - Renders fixed sidebar (w-56) + top bar + scrollable content area.
  *
  * Pages that need full-viewport (e.g. the review split-panel) should NOT
@@ -32,17 +32,24 @@ export async function AppShell({ children, variant }: AppShellProps) {
 
   // Role gate
   if (variant === "admin" && !isAdminRole(session.role)) {
-    redirect("/annotator/dashboard");
+    redirect("/annotator/tasks");
   }
   if (variant === "annotator" && !isAnnotatorRole(session.role)) {
-    redirect("/admin/dashboard");
+    redirect("/admin/datasets");
   }
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex">
-        <AppSidebar variant={variant} role={session.role} />
+      <AppSidebar variant={variant} role={session.role} />
       <div className="flex-1 flex flex-col min-w-0">
-        <AppHeader />
+        <AppHeader
+          user={{
+            id: session.userId,
+            email: session.email,
+            name: session.name,
+            role: session.role,
+          }}
+        />
         <main className="min-w-0 flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 lg:pb-6">
           {children}
         </main>

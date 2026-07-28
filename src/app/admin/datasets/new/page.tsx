@@ -11,6 +11,10 @@ import {
   SAFETY_COMPLIANCE_DEFAULT_METRICS,
   type DatasetMetricDraft,
 } from "@/components/admin/dataset-metrics-editor";
+import { parseDatasetFile } from "@/lib/datasets/client-file-import";
+import { inspectDatasetRows } from "@/lib/datasets/import-validation";
+
+const CLIENT_IMPORT_CHUNK_SIZE = 500;
 
 interface InspectPayload {
   filename: string;
@@ -29,6 +33,15 @@ export default function NewDatasetPage() {
   const [detailFields, setDetailFields] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<DatasetMetricDraft[]>(SAFETY_COMPLIANCE_DEFAULT_METRICS);
   const [status, setStatus] = useState("");
+  const statusClassName = status.startsWith("Đang ") ? "text-slate-600" : "text-red-600";
+
+  function chunkRows<T>(items: T[]): T[][] {
+    const chunks: T[][] = [];
+    for (let index = 0; index < items.length; index += CLIENT_IMPORT_CHUNK_SIZE) {
+      chunks.push(items.slice(index, index + CLIENT_IMPORT_CHUNK_SIZE));
+    }
+    return chunks;
+  }
 
   async function handleFile(file: File | null) {
     setStatus("");
@@ -38,35 +51,21 @@ export default function NewDatasetPage() {
     setDetailFields([]);
     if (!file) return;
 
-    const content = await file.text();
     setFilename(file.name);
+    setStatus("Đang phân tích file...");
 
     let parsedRows: Record<string, unknown>[];
     try {
-      parsedRows = JSON.parse(content);
-    } catch {
-      setStatus("JSON không hợp lệ");
-      return;
-    }
-    if (!Array.isArray(parsedRows)) {
-      setStatus("File phải là JSON array");
+      parsedRows = await parseDatasetFile(file);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "File JSON/JSONL không hợp lệ");
       return;
     }
 
-    const response = await fetch("/api/datasets/inspect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: file.name, content }),
-    });
-    const payload = await response.json();
-
-    if (!response.ok) {
-      setStatus(payload.message ?? payload.error ?? "Không inspect được file");
-      return;
-    }
-
+    const payload = { filename: file.name, ...inspectDatasetRows(parsedRows) };
     setRows(parsedRows);
     setInspect(payload);
+    setStatus("");
     const suggestedList = payload.fields
       .map((field: DatasetField) => field.path)
       .filter((path: string) => ["input", "prompt", "text", "label.sub_intent", "label.policy"].includes(path))
@@ -80,6 +79,8 @@ export default function NewDatasetPage() {
 
   async function createDataset() {
     setStatus("");
+    if (!inspect) return;
+    const [firstChunk, ...remainingChunks] = chunkRows(rows);
     const response = await fetch("/api/datasets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -87,7 +88,9 @@ export default function NewDatasetPage() {
         name,
         domain: "safety_compliance",
         sourceFilename: filename,
-        rows,
+        rows: firstChunk,
+        totalRows: rows.length,
+        schemaFingerprint: inspect.fields,
         listFields,
         detailFields,
         metrics,
@@ -98,6 +101,22 @@ export default function NewDatasetPage() {
       setStatus(payload.error ?? "Không tạo được dataset");
       return;
     }
+
+    for (let index = 0; index < remainingChunks.length; index++) {
+      setStatus(`Đang import thêm phần ${index + 1}/${remainingChunks.length}`);
+      const finalChunk = index === remainingChunks.length - 1;
+      const importResponse = await fetch(`/api/datasets/${payload.datasetId}/imports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, rows: remainingChunks[index], importId: payload.importId, totalRows: rows.length, finalChunk }),
+      });
+      const importPayload = await importResponse.json();
+      if (!importResponse.ok) {
+        setStatus(importPayload.error ?? `Dataset đã tạo nhưng lỗi import phần ${index + 1}`);
+        return;
+      }
+    }
+
     router.push(`/admin/datasets/${payload.datasetId}`);
   }
 
@@ -105,7 +124,7 @@ export default function NewDatasetPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Tạo dataset</h1>
-        <p className="text-sm text-slate-500">Upload JSON array, chọn field hiển thị trên list và detail.</p>
+        <p className="text-sm text-slate-500">Upload JSON array hoặc JSONL, chọn field hiển thị trên list và detail.</p>
       </div>
 
       <div className="rounded-md border border-slate-200 bg-white p-4">
@@ -118,9 +137,14 @@ export default function NewDatasetPage() {
           </div>
           <div className="space-y-1.5">
             <label htmlFor="dataset-file" className="block text-sm font-medium text-slate-700">
-              File JSON
+              File JSON/JSONL
             </label>
-            <Input id="dataset-file" type="file" accept=".json,application/json" onChange={(event) => handleFile(event.target.files?.[0] ?? null)} />
+            <Input
+              id="dataset-file"
+              type="file"
+              accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson"
+              onChange={(event) => handleFile(event.target.files?.[0] ?? null)}
+            />
           </div>
         </div>
         {inspect && (
@@ -129,7 +153,7 @@ export default function NewDatasetPage() {
             {inspect.filename}: {inspect.rowCount} dòng, {inspect.fields.length} field
           </div>
         )}
-        {status && <div className="mt-3 text-sm text-red-600">{status}</div>}
+        {status && <div className={`mt-3 text-sm ${statusClassName}`}>{status}</div>}
       </div>
 
       {inspect && (

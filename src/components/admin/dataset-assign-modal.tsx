@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,22 +31,37 @@ interface DatasetAssignModalProps {
 export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, onOpenChange, onAssigned }: DatasetAssignModalProps) {
   const [scope, setScope] = useState<"selected" | "all">("selected");
   const [targetOverlap, setTargetOverlap] = useState(3);
+  const [maxRowsPerAnnotator, setMaxRowsPerAnnotator] = useState<number | "">("");
   const [metricIds, setMetricIds] = useState<string[]>([]);
   const [annotators, setAnnotators] = useState<ActiveAnnotator[]>([]);
   const [annotatorIds, setAnnotatorIds] = useState<string[]>([]);
   const [status, setStatus] = useState("");
+  const targetOverlapRef = useRef(targetOverlap);
+
+  useEffect(() => {
+    targetOverlapRef.current = targetOverlap;
+  }, [targetOverlap]);
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     fetch("/api/annotators?status=active")
       .then((response) => response.json())
       .then((payload) => {
         const data = (payload.data ?? []) as ActiveAnnotator[];
+        if (cancelled) return;
         setAnnotators(data);
-        setAnnotatorIds(data.slice(0, targetOverlap).map((item) => item.userId));
+        const validIds = new Set(data.map((item) => item.userId));
+        setAnnotatorIds((current) => {
+          const currentValid = current.filter((id) => validIds.has(id));
+          return currentValid.length > 0 ? currentValid : data.slice(0, targetOverlapRef.current).map((item) => item.userId);
+        });
       })
       .catch(() => setStatus("Không tải được danh sách annotator"));
-  }, [open, targetOverlap]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (metricIds.length === 0 && metrics.length > 0) {
@@ -56,8 +71,11 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
 
   const plannedRows = scope === "all" ? "toàn bộ dataset" : `${selectedRowIds.length} dòng`;
   const preview = useMemo(
-    () => `${plannedRows} x overlap ${targetOverlap} x ${metricIds.length} metric`,
-    [metricIds.length, plannedRows, targetOverlap],
+    () =>
+      `${plannedRows} x overlap ${targetOverlap} x ${metricIds.length} metric${
+        maxRowsPerAnnotator ? ` · tối đa ${maxRowsPerAnnotator} câu/annotator` : ""
+      }`,
+    [maxRowsPerAnnotator, metricIds.length, plannedRows, targetOverlap],
   );
 
   function toggleMetric(id: string) {
@@ -73,6 +91,7 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
     const body = {
       scope: scope === "all" ? { type: "all" as const } : { type: "selected" as const, rowIds: selectedRowIds },
       targetOverlap,
+      maxRowsPerAnnotator: maxRowsPerAnnotator || undefined,
       metricIds,
       annotatorIds,
     };
@@ -111,12 +130,25 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <label htmlFor="assign-overlap" className="block text-xs font-semibold uppercase text-slate-500">
                 Overlap
               </label>
               <Input id="assign-overlap" type="number" min={1} max={5} value={targetOverlap} onChange={(event) => setTargetOverlap(Number(event.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="assign-max-rows" className="block text-xs font-semibold uppercase text-slate-500">
+                Số câu / annotator
+              </label>
+              <Input
+                id="assign-max-rows"
+                type="number"
+                min={1}
+                placeholder="Không giới hạn"
+                value={maxRowsPerAnnotator}
+                onChange={(event) => setMaxRowsPerAnnotator(event.target.value ? Number(event.target.value) : "")}
+              />
             </div>
             <div className="space-y-2">
               <div className="text-xs font-semibold uppercase text-slate-500">Preview</div>

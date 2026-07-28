@@ -24,7 +24,7 @@ export const POST = requireAdmin(async (req: NextRequest, _session, context) => 
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
   try {
-    const rows = parseDatasetRows(parsed.data.content);
+    const rows = parseDatasetRows(parsed.data.content, { filename: parsed.data.filename });
     const requiredFields = dataset.requiredAppendFields as string[];
     const validation = validateAppendRows(rows, requiredFields);
     if (!validation.ok) {

@@ -20,6 +20,7 @@ export function planBalancedAssignments(input: {
   annotatorIds: string[];
   metricIds: string[];
   targetOverlap: number;
+  maxRowsPerAnnotator?: number;
   existingAssignments: ExistingAssignment[];
 }): { ok: true; assignments: PlannedAssignment[]; skippedRowIds: string[] } | { ok: false; reason: "NOT_ENOUGH_ANNOTATORS" } {
   if (input.annotatorIds.length < input.targetOverlap) {
@@ -28,10 +29,14 @@ export function planBalancedAssignments(input: {
 
   const metricKey = buildMetricKey(input.metricIds);
   const currentRunLoad = new Map(input.annotatorIds.map((annotatorId) => [annotatorId, 0]));
+  const assignedRowsByAnnotator = new Map(input.annotatorIds.map((annotatorId) => [annotatorId, new Set<string>()]));
   for (const assignment of input.existingAssignments) {
     if (assignment.metricKey === metricKey && currentRunLoad.has(assignment.annotatorId)) {
-      currentRunLoad.set(assignment.annotatorId, (currentRunLoad.get(assignment.annotatorId) ?? 0) + 1);
+      assignedRowsByAnnotator.get(assignment.annotatorId)?.add(assignment.rowId);
     }
+  }
+  for (const [annotatorId, rowIds] of assignedRowsByAnnotator) {
+    currentRunLoad.set(annotatorId, rowIds.size);
   }
   const assignments: PlannedAssignment[] = [];
   const skippedRowIds: string[] = [];
@@ -48,12 +53,17 @@ export function planBalancedAssignments(input: {
       continue;
     }
 
-    for (let index = 0; index < missing; index += 1) {
-      const nextAnnotator = input.annotatorIds
-        .filter((annotatorId) => !assignedAnnotators.has(annotatorId))
-        .sort((a, b) => (currentRunLoad.get(a) ?? 0) - (currentRunLoad.get(b) ?? 0) || a.localeCompare(b))[0];
+    const candidates = input.annotatorIds
+      .filter((annotatorId) => !assignedAnnotators.has(annotatorId))
+      .filter((annotatorId) => !input.maxRowsPerAnnotator || (currentRunLoad.get(annotatorId) ?? 0) < input.maxRowsPerAnnotator)
+      .sort((a, b) => (currentRunLoad.get(a) ?? 0) - (currentRunLoad.get(b) ?? 0) || a.localeCompare(b));
+    if (candidates.length < missing) {
+      skippedRowIds.push(rowId);
+      continue;
+    }
 
-      if (!nextAnnotator) break;
+    for (let index = 0; index < missing; index += 1) {
+      const nextAnnotator = candidates[index];
 
       assignments.push({ rowId, annotatorId: nextAnnotator, metricIds: input.metricIds });
       assignedAnnotators.add(nextAnnotator);

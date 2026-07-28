@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ROLE_LABELS } from "@/lib/labels";
+import { ROLE_LABELS, labelForDomain } from "@/lib/labels";
 import type { AppRole } from "@/lib/roles";
 
 interface Member {
@@ -12,14 +12,28 @@ interface Member {
   email: string;
   name: string | null;
   role: AppRole;
+  annotatorProfileId: string | null;
+  annotatorDomain: string | null;
+  annotatorStatus: string | null;
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Đang hoạt động",
+  inactive: "Tạm dừng",
+  pending: "Chờ kích hoạt",
+};
 
 function roleLabel(role: string): string {
   return (ROLE_LABELS as Record<string, string>)[role] ?? role;
 }
 
+function statusLabel(status: string | null): string {
+  return status ? STATUS_LABELS[status] ?? status : "-";
+}
+
 export default function AdminMembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [canManageRoles, setCanManageRoles] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -27,11 +41,14 @@ export default function AdminMembersPage() {
   useEffect(() => {
     fetch("/api/admin/members")
       .then((res) => {
-        if (!res.ok) throw new Error("Không tải được danh sách member");
+        if (!res.ok) throw new Error("Không tải được danh sách thành viên");
         return res.json();
       })
-      .then((payload) => setMembers(payload.members ?? []))
-      .catch((err) => setError(err instanceof Error ? err.message : "Không tải được danh sách member"))
+      .then((payload) => {
+        setMembers(payload.members ?? []);
+        setCanManageRoles(Boolean(payload.canManageRoles));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Không tải được danh sách thành viên"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,11 +74,44 @@ export default function AdminMembersPage() {
     }
   }
 
+  async function updateAnnotatorStatus(member: Member, status: "active" | "inactive") {
+    if (!member.annotatorProfileId) return;
+    setError("");
+    setSavingId(member.id);
+    try {
+      const res = await fetch(`/api/annotators/${member.annotatorProfileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(payload.error?.message ?? "Không cập nhật được trạng thái annotator");
+        return;
+      }
+      setMembers((current) =>
+        current.map((item) =>
+          item.id === member.id
+            ? {
+                ...item,
+                annotatorStatus: payload.data?.status ?? status,
+                annotatorDomain: payload.data?.domain ?? item.annotatorDomain,
+              }
+            : item,
+        ),
+      );
+    } catch {
+      setError("Không cập nhật được trạng thái annotator");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Phân quyền member</h1>
-        <p className="mt-1 text-sm text-slate-500">Chỉ superadmin có quyền đổi member thành admin hoặc annotator.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Thành viên</h1>
+        <p className="mt-1 text-sm text-slate-500">Quản lý role, trạng thái annotator và domain trong một màn.</p>
       </div>
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
@@ -70,19 +120,27 @@ export default function AdminMembersPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-4 py-3">Member</th>
-              <th className="px-4 py-3">Role hiện tại</th>
-              <th className="px-4 py-3">Đổi role</th>
+              <th className="px-4 py-3">Thành viên</th>
+              <th className="px-4 py-3">Role</th>
+              <th className="px-4 py-3">Annotator</th>
+              <th className="px-4 py-3">Domain</th>
+              <th className="px-4 py-3">Thao tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">Đang tải...</td>
-              </tr>
+              Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index}>
+                  <td className="px-4 py-4"><div className="h-4 w-48 rounded bg-slate-100" /></td>
+                  <td className="px-4 py-4"><div className="h-4 w-24 rounded bg-slate-100" /></td>
+                  <td className="px-4 py-4"><div className="h-4 w-28 rounded bg-slate-100" /></td>
+                  <td className="px-4 py-4"><div className="h-4 w-32 rounded bg-slate-100" /></td>
+                  <td className="px-4 py-4"><div className="h-8 w-36 rounded bg-slate-100" /></td>
+                </tr>
+              ))
             ) : members.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">Chưa có member.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">Chưa có thành viên.</td>
               </tr>
             ) : (
               members.map((member) => (
@@ -92,26 +150,37 @@ export default function AdminMembersPage() {
                     <div className="text-xs text-slate-500">{member.email}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={member.role === "superadmin" ? "default" : "outline"}>{roleLabel(member.role)}</Badge>
+                    {member.role === "superadmin" || !canManageRoles ? (
+                      <Badge variant={member.role === "superadmin" ? "default" : "outline"}>{roleLabel(member.role)}</Badge>
+                    ) : (
+                      <Select value={member.role} onValueChange={(value) => updateRole(member, value as "admin" | "annotator")}>
+                        <SelectTrigger className="w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="annotator">{roleLabel("annotator")}</SelectItem>
+                          <SelectItem value="admin">{roleLabel("admin")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    {member.role === "superadmin" ? (
-                      <span className="text-xs text-slate-500">Không đổi qua màn này</span>
+                    <Badge variant={member.annotatorStatus === "active" ? "success" : "outline"}>{statusLabel(member.annotatorStatus)}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {member.annotatorDomain ? labelForDomain(member.annotatorDomain) : "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {member.annotatorProfileId && member.annotatorStatus !== "active" ? (
+                      <Button type="button" variant="outline" size="sm" disabled={savingId === member.id} onClick={() => updateAnnotatorStatus(member, "active")}>
+                        Kích hoạt
+                      </Button>
+                    ) : member.annotatorProfileId ? (
+                      <Button type="button" variant="outline" size="sm" disabled={savingId === member.id} onClick={() => updateAnnotatorStatus(member, "inactive")}>
+                        Tạm dừng
+                      </Button>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <Select value={member.role} onValueChange={(value) => updateRole(member, value as "admin" | "annotator")}>
-                          <SelectTrigger className="w-44">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="annotator">Annotator</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button type="button" variant="ghost" disabled size="sm" className={savingId === member.id ? "opacity-100" : "opacity-0"}>
-                          Đang lưu
-                        </Button>
-                      </div>
+                      <span className="text-xs text-slate-400">Không phải annotator</span>
                     )}
                   </td>
                 </tr>

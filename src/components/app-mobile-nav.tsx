@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Package,
   Users,
   ClipboardList,
   FileText,
@@ -13,16 +11,12 @@ import {
 } from "lucide-react";
 
 const ADMIN_NAV = [
-  { href: "/admin/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/admin/datasets", label: "Datasets", icon: TableProperties },
-  { href: "/admin/batches", label: "Đợt upload", icon: Package },
-  { href: "/admin/annotators", label: "Annotator", icon: Users },
-  { href: "/admin/members", label: "Phân quyền", icon: Users },
+  { href: "/admin/members", label: "Thành viên", icon: Users },
   { href: "/admin/rubrics", label: "Rubric", icon: ClipboardList },
 ];
 
 const ANNOTATOR_NAV = [
-  { href: "/annotator/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/annotator/tasks", label: "Task", icon: FileText },
   { href: "/annotator/profile", label: "Hồ sơ", icon: UserCircle },
 ];
@@ -32,14 +26,9 @@ interface AppMobileNavProps {
   role?: string;
 }
 
-export function AppMobileNav({ variant, role }: AppMobileNavProps) {
+export function AppMobileNav({ variant }: AppMobileNavProps) {
   const pathname = usePathname();
-  const items =
-    variant === "admin" && role !== "superadmin"
-      ? ADMIN_NAV.filter((item) => item.href !== "/admin/members")
-      : variant === "admin"
-        ? ADMIN_NAV
-        : ANNOTATOR_NAV;
+  const items = variant === "admin" ? ADMIN_NAV : ANNOTATOR_NAV;
 
   return (
     <nav
@@ -52,14 +41,15 @@ export function AppMobileNav({ variant, role }: AppMobileNavProps) {
           <Link
             key={href}
             href={href}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-lg text-xs transition-colors min-w-[56px] ${
+            aria-current={active ? "page" : undefined}
+            className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1 text-xs font-medium transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.98] ${
               active
-                ? "text-blue-700"
+                ? "bg-blue-50 text-blue-700"
                 : "text-slate-500 hover:text-slate-900"
             }`}
           >
             <Icon className={`h-5 w-5 ${active ? "text-blue-700" : ""}`} />
-            <span className={`font-medium truncate ${active ? "font-semibold" : ""}`}>
+            <span className="max-w-full truncate">
               {label}
             </span>
           </Link>

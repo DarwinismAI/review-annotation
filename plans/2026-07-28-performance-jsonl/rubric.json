@@ -1,0 +1,28 @@
+{
+  "locked": true,
+  "target": 7,
+  "target_min": 6,
+  "orchestration_mode": "Local controller after spawn limit",
+  "criteria": [
+    {
+      "name": "jsonl_correctness",
+      "description": "JSON array and JSONL imports parse correctly, invalid JSONL reports useful errors, existing append field validation still works.",
+      "target": 8
+    },
+    {
+      "name": "backend_performance",
+      "description": "Large imports avoid obvious O(n) scans and single huge insert statements on the server hot path.",
+      "target": 7
+    },
+    {
+      "name": "navigation_smoothness",
+      "description": "Sidebar/mobile tab transitions use stable, low-cost styling and avoid hosted-only unnecessary failed requests.",
+      "target": 7
+    },
+    {
+      "name": "regression_safety",
+      "description": "Dataset tests, typecheck, and browser smoke pass with no request status >= 400 in the tested main flow.",
+      "target": 7
+    }
+  ]
+}

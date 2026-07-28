@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  // Local dev → straight to admin dashboard
+  // Local dev starts at the primary admin workspace.
   if (process.env.LOCAL_DB_PATH) {
-    redirect("/admin/dashboard");
+    redirect("/admin/datasets");
   }
   redirect("/login");
 }

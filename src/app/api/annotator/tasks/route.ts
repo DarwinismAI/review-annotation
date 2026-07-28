@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
+import { count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics, datasetRows, datasets } from "@/db/datasets";
 import { requireAnnotator } from "@/lib/auth-middleware";
@@ -16,7 +16,15 @@ function normalizeJson(value: unknown): JsonRecord {
   return value && typeof value === "object" ? (value as JsonRecord) : {};
 }
 
-export const GET = requireAnnotator(async (_req, session) => {
+export const GET = requireAnnotator(async (req: NextRequest, session) => {
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
+  const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 100), 1), 200);
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(annotationAssignments)
+    .where(eq(annotationAssignments.annotatorId, session.user.id));
+
   const assignments = await db
     .select({
       id: annotationAssignments.id,
@@ -32,7 +40,10 @@ export const GET = requireAnnotator(async (_req, session) => {
     .from(annotationAssignments)
     .innerJoin(datasets, eq(annotationAssignments.datasetId, datasets.id))
     .innerJoin(datasetRows, eq(annotationAssignments.rowId, datasetRows.id))
-    .where(eq(annotationAssignments.annotatorId, session.user.id));
+    .where(eq(annotationAssignments.annotatorId, session.user.id))
+    .orderBy(desc(annotationAssignments.assignedAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 
   const allMetricIds: string[] = Array.from(new Set(assignments.flatMap((assignment: any) => assignment.metricIds as string[])));
   const metrics =
@@ -43,7 +54,6 @@ export const GET = requireAnnotator(async (_req, session) => {
 
   return NextResponse.json({
     tasks: assignments
-      .sort((a: any, b: any) => String(b.assignedAt).localeCompare(String(a.assignedAt)))
       .map((assignment: any) => {
         const displayConfig = assignment.displayConfig as { listFields: string[]; detailFields: string[] };
         const metricIds = assignment.metricIds as string[];
@@ -58,5 +68,8 @@ export const GET = requireAnnotator(async (_req, session) => {
           metricLabels: metricIds.map((metricId) => metricLabels.get(metricId)).filter(Boolean),
         };
       }),
+    total,
+    page,
+    pageSize,
   });
 });

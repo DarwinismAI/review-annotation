@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationMetrics, datasetImports, datasetRows, datasets } from "@/db/datasets";
@@ -27,27 +27,67 @@ const createDatasetSchema = z.object({
   domain: z.string().min(1),
   sourceFilename: z.string().min(1),
   rows: z.array(z.record(z.unknown())).min(1),
+  totalRows: z.number().int().min(1).optional(),
+  schemaFingerprint: z.array(z.object({ path: z.string(), type: z.string(), sample: z.unknown() })).optional(),
   listFields: z.array(z.string()).min(1),
   detailFields: z.array(z.string()).min(1),
   metrics: z.array(metricSchema).min(1),
 });
+
+const ROW_INSERT_CHUNK_SIZE = 500;
 
 function getSourceId(row: JsonRecord): string | null {
   const candidate = row.id ?? row._id ?? row.uuid;
   return typeof candidate === "string" || typeof candidate === "number" ? String(candidate) : null;
 }
 
+function chunkRows<T>(rows: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
 export const GET = requireAdmin(async () => {
   const allDatasets = await db.select().from(datasets).orderBy(desc(datasets.createdAt));
-  const rowCounts = await db
-    .select({ datasetId: datasetRows.datasetId, total: count() })
-    .from(datasetRows)
-    .groupBy(datasetRows.datasetId);
-  const metricCounts = await db
-    .select({ datasetId: annotationMetrics.datasetId, total: count() })
-    .from(annotationMetrics)
-    .groupBy(annotationMetrics.datasetId);
-  const allImports = await db.select().from(datasetImports).orderBy(desc(datasetImports.createdAt));
+  const datasetIds = allDatasets.map((dataset: any) => dataset.id);
+  const rowCounts =
+    datasetIds.length > 0
+      ? await db
+          .select({ datasetId: datasetRows.datasetId, total: count() })
+          .from(datasetRows)
+          .where(inArray(datasetRows.datasetId, datasetIds))
+          .groupBy(datasetRows.datasetId)
+      : [];
+  const metricCounts =
+    datasetIds.length > 0
+      ? await db
+          .select({ datasetId: annotationMetrics.datasetId, total: count() })
+          .from(annotationMetrics)
+          .where(inArray(annotationMetrics.datasetId, datasetIds))
+          .groupBy(annotationMetrics.datasetId)
+      : [];
+  const latestImportTimes = db
+    .select({
+      datasetId: datasetImports.datasetId,
+      latestCreatedAt: max(datasetImports.createdAt).as("latest_created_at"),
+    })
+    .from(datasetImports)
+    .where(inArray(datasetImports.datasetId, datasetIds))
+    .groupBy(datasetImports.datasetId)
+    .as("latest_import_times");
+  const allImports =
+    datasetIds.length > 0
+      ? await db
+          .select({ datasetId: datasetImports.datasetId, sourceFilename: datasetImports.sourceFilename })
+          .from(datasetImports)
+          .innerJoin(
+            latestImportTimes,
+            and(eq(datasetImports.datasetId, latestImportTimes.datasetId), eq(datasetImports.createdAt, latestImportTimes.latestCreatedAt)),
+          )
+          .orderBy(desc(datasetImports.createdAt))
+      : [];
 
   const rowCount = new Map<string, number>();
   for (const row of rowCounts) rowCount.set(row.datasetId, row.total);
@@ -94,14 +134,16 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
   const importId = createId();
   const now = new Date();
   const requiredAppendFields = computeRequiredAppendFields(parsed.data.listFields, parsed.data.detailFields);
-  const schemaFingerprint = inspectDatasetRows(parsed.data.rows).fields;
+  const schemaFingerprint = parsed.data.schemaFingerprint ?? inspectDatasetRows(parsed.data.rows).fields;
+  const totalRows = parsed.data.totalRows ?? parsed.data.rows.length;
+  const isComplete = parsed.data.rows.length >= totalRows;
 
   await db.transaction(async (tx: any) => {
     await tx.insert(datasets).values({
       id: datasetId,
       name: parsed.data.name,
       domain: parsed.data.domain,
-      status: "ready",
+      status: isComplete ? "ready" : "importing",
       schemaFingerprint,
       displayConfig: { listFields: parsed.data.listFields, detailFields: parsed.data.detailFields },
       requiredAppendFields,
@@ -114,24 +156,25 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
       id: importId,
       datasetId,
       sourceFilename: parsed.data.sourceFilename,
-      status: "completed",
+      status: isComplete ? "completed" : "in_progress",
       rowCount: parsed.data.rows.length,
       missingFieldsReport: null,
       createdBy: session.user.id,
       createdAt: now,
     });
 
-    await tx.insert(datasetRows).values(
-      parsed.data.rows.map((row, index) => ({
-        id: createId(),
-        datasetId,
-        importId,
-        internalRowId: index + 1,
-        rawJson: row,
-        sourceId: getSourceId(row),
-        createdAt: now,
-      })),
-    );
+    const rowValues = parsed.data.rows.map((row, index) => ({
+      id: createId(),
+      datasetId,
+      importId,
+      internalRowId: index + 1,
+      rawJson: row,
+      sourceId: getSourceId(row),
+      createdAt: now,
+    }));
+    for (const chunk of chunkRows(rowValues, ROW_INSERT_CHUNK_SIZE)) {
+      await tx.insert(datasetRows).values(chunk);
+    }
 
     await tx.insert(annotationMetrics).values(
       parsed.data.metrics.map((metric) => ({
@@ -149,5 +192,5 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
     );
   });
 
-  return NextResponse.json({ datasetId });
+  return NextResponse.json({ datasetId, importId, insertedRows: parsed.data.rows.length, status: isComplete ? "ready" : "importing" });
 });

@@ -5,6 +5,11 @@ import { Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { collectExtraFieldsResponsive, parseDatasetFile, validateAppendRowsResponsive } from "@/lib/datasets/client-file-import";
+import { type JsonRecord } from "@/lib/datasets/import-validation";
+
+const CLIENT_IMPORT_CHUNK_SIZE = 500;
+type StatusKind = "idle" | "progress" | "success" | "error";
 
 interface MissingField {
   path: string;
@@ -14,60 +19,89 @@ interface MissingField {
 
 interface DatasetAppendImportPanelProps {
   datasetId: string;
+  requiredFields: string[];
+  schemaFields: Array<{ path: string }>;
   onImported: () => void;
 }
 
-export function DatasetAppendImportPanel({ datasetId, onImported }: DatasetAppendImportPanelProps) {
+export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFields, onImported }: DatasetAppendImportPanelProps) {
   const [filename, setFilename] = useState("");
-  const [content, setContent] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [rows, setRows] = useState<JsonRecord[]>([]);
   const [rowCount, setRowCount] = useState<number | null>(null);
   const [extraFields, setExtraFields] = useState<string[]>([]);
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
   const [status, setStatus] = useState("");
+  const [statusKind, setStatusKind] = useState<StatusKind>("idle");
+
+  function showStatus(message: string, kind: StatusKind) {
+    setStatus(message);
+    setStatusKind(kind);
+  }
 
   async function handleFile(file: File | null) {
     setStatus("");
+    setStatusKind("idle");
     setRowCount(null);
     setExtraFields([]);
     setMissingFields([]);
+    setRows([]);
+    setFile(file);
     if (!file) return;
 
-    const text = await file.text();
     setFilename(file.name);
-    setContent(text);
+    showStatus("Đang phân tích file...", "progress");
 
-    const response = await fetch(`/api/datasets/${datasetId}/imports/inspect`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: file.name, content: text }),
-    });
-    const payload = await response.json();
-
-    if (!response.ok) {
-      setStatus(payload.message ?? payload.error ?? "Import không hợp lệ");
-      setMissingFields(payload.missingFields ?? []);
+    let parsedRows: JsonRecord[];
+    try {
+      parsedRows = await parseDatasetFile(file);
+    } catch (error) {
+      showStatus(error instanceof Error ? error.message : "Import không hợp lệ", "error");
       return;
     }
 
-    setRowCount(payload.rowCount);
-    setExtraFields(payload.extraFields ?? []);
-    setStatus("File hợp lệ để append");
+    showStatus("Đang kiểm tra field bắt buộc...", "progress");
+    const validation = await validateAppendRowsResponsive(parsedRows, requiredFields);
+    if (!validation.ok) {
+      showStatus("File thiếu field bắt buộc", "error");
+      setMissingFields(validation.missingFields);
+      return;
+    }
+
+    showStatus("Đang kiểm tra field thừa...", "progress");
+    const initialFields = new Set(schemaFields.map((field) => field.path));
+    const nextExtraFields = await collectExtraFieldsResponsive(parsedRows, initialFields);
+
+    setRows(parsedRows);
+    setRowCount(parsedRows.length);
+    setExtraFields(nextExtraFields);
+    showStatus("File hợp lệ để append", "success");
   }
 
   async function importRows() {
-    const response = await fetch(`/api/datasets/${datasetId}/imports`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename, content }),
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatus(payload.message ?? payload.error ?? "Import thất bại");
-      setMissingFields(payload.missingFields ?? []);
-      return;
+    if (!file || rows.length === 0) return;
+
+    let importId = "";
+    for (let index = 0; index < rows.length; index += CLIENT_IMPORT_CHUNK_SIZE) {
+      const chunk = rows.slice(index, index + CLIENT_IMPORT_CHUNK_SIZE);
+      const finalChunk = index + chunk.length >= rows.length;
+      const response = await fetch(`/api/datasets/${datasetId}/imports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, rows: chunk, importId: importId || undefined, totalRows: rows.length, finalChunk }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        showStatus(payload.message ?? payload.error ?? `Import thất bại tại dòng ${index + 1}`, "error");
+        setMissingFields(payload.missingFields ?? []);
+        return;
+      }
+      importId = payload.importId;
+      showStatus(`Đã import ${Math.min(index + chunk.length, rows.length)}/${rows.length} dòng`, "progress");
     }
-    setStatus(`Đã thêm ${payload.insertedRows} dòng`);
-    setContent("");
+    showStatus(`Đã thêm ${rows.length} dòng`, "success");
+    setFile(null);
+    setRows([]);
     setFilename("");
     setRowCount(null);
     onImported();
@@ -84,11 +118,20 @@ export function DatasetAppendImportPanel({ datasetId, onImported }: DatasetAppen
       </div>
       <div className="space-y-1.5">
         <label htmlFor="append-dataset-file" className="block text-sm font-medium text-slate-700">
-          File JSON append
+          File JSON/JSONL append
         </label>
-        <Input id="append-dataset-file" type="file" accept=".json,application/json" onChange={(event) => handleFile(event.target.files?.[0] ?? null)} />
+        <Input
+          id="append-dataset-file"
+          type="file"
+          accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson"
+          onChange={(event) => handleFile(event.target.files?.[0] ?? null)}
+        />
       </div>
-      {status && <div className="text-sm text-slate-700">{status}</div>}
+      {status && (
+        <div className={`text-sm ${statusKind === "error" ? "text-red-600" : statusKind === "success" ? "text-green-700" : "text-slate-700"}`}>
+          {status}
+        </div>
+      )}
       {rowCount !== null && <Badge variant="success">{rowCount} dòng hợp lệ</Badge>}
       {extraFields.length > 0 && <div className="text-xs text-slate-500">Field thừa: {extraFields.slice(0, 8).join(", ")}</div>}
       {missingFields.length > 0 && (
@@ -100,7 +143,7 @@ export function DatasetAppendImportPanel({ datasetId, onImported }: DatasetAppen
           ))}
         </div>
       )}
-      <Button type="button" onClick={importRows} disabled={!content || missingFields.length > 0 || rowCount === null}>
+      <Button type="button" onClick={importRows} disabled={!file || missingFields.length > 0 || rowCount === null}>
         Import thêm dòng
       </Button>
     </div>

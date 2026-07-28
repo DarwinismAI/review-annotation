@@ -48,3 +48,38 @@ if (alreadyComplete.ok) {
   assert.deepEqual(alreadyComplete.assignments, []);
   assert.deepEqual(alreadyComplete.skippedRowIds, ["r1"]);
 }
+
+const quotaPlan = planBalancedAssignments({
+  rowIds: ["r1", "r2", "r3"],
+  annotatorIds: ["a1", "a2", "a3"],
+  metricIds: ["m1"],
+  targetOverlap: 2,
+  maxRowsPerAnnotator: 1,
+  existingAssignments: [],
+});
+
+assert.equal(quotaPlan.ok, true);
+if (quotaPlan.ok) {
+  assert.deepEqual(quotaPlan.assignments, [
+    { rowId: "r1", annotatorId: "a1", metricIds: ["m1"] },
+    { rowId: "r1", annotatorId: "a2", metricIds: ["m1"] },
+  ]);
+  assert.deepEqual(quotaPlan.skippedRowIds, ["r2", "r3"]);
+}
+
+const quotaWithExistingLoad = planBalancedAssignments({
+  rowIds: ["r1", "r2"],
+  annotatorIds: ["a1", "a2", "a3"],
+  metricIds: ["m1"],
+  targetOverlap: 2,
+  maxRowsPerAnnotator: 1,
+  existingAssignments: [{ rowId: "r1", annotatorId: "a1", metricKey: "m1", status: "assigned" }],
+});
+
+assert.equal(quotaWithExistingLoad.ok, true);
+if (quotaWithExistingLoad.ok) {
+  assert.deepEqual(quotaWithExistingLoad.assignments, [
+    { rowId: "r1", annotatorId: "a2", metricIds: ["m1"] },
+  ]);
+  assert.deepEqual(quotaWithExistingLoad.skippedRowIds, ["r2"]);
+}

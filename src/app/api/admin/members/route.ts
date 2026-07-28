@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { profiles } from "@/db/schema";
-import { requireSuperAdmin } from "@/lib/auth-middleware";
-import { normalizeRole, resolveEffectiveRole } from "@/lib/roles";
+import { expertProfiles, profiles } from "@/db/schema";
+import { requireAdmin, requireSuperAdmin } from "@/lib/auth-middleware";
+import { isSuperAdminRole, normalizeRole, resolveEffectiveRole } from "@/lib/roles";
 
 const MANAGED_ROLES = new Set(["admin", "annotator"]);
 
@@ -14,19 +14,24 @@ function isLegacyRoleConstraintError(error: unknown): boolean {
   return /role_check|profiles_role_check|check constraint|CHECK constraint/i.test(message);
 }
 
-export const GET = requireSuperAdmin(async () => {
+export const GET = requireAdmin(async (_req, session) => {
   const rows = await db
     .select({
       id: profiles.id,
       email: profiles.email,
       name: profiles.name,
       role: profiles.role,
+      annotatorProfileId: expertProfiles.id,
+      annotatorDomain: expertProfiles.domain,
+      annotatorStatus: expertProfiles.status,
       createdAt: profiles.createdAt,
       updatedAt: profiles.updatedAt,
     })
-    .from(profiles);
+    .from(profiles)
+    .leftJoin(expertProfiles, eq(expertProfiles.userId, profiles.id));
 
   return NextResponse.json({
+    canManageRoles: isSuperAdminRole(session.user.role),
     members: rows
       .map((row: any) => ({ ...row, role: resolveEffectiveRole(row.role, row.email) }))
       .sort((a: any, b: any) => String(a.email).localeCompare(String(b.email))),
