@@ -1,6 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createId } from "@paralleldrive/cuid2";
-import { profiles } from "./schema.sqlite";
+import { profiles, rubricCriteria } from "./schema.sqlite";
 
 export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
@@ -18,7 +18,7 @@ export const reviews = sqliteTable("reviews", {
 export const reviewScores = sqliteTable("review_scores", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
   reviewId: text("review_id").notNull(),
-  criterionId: text("criterion_id").notNull(),
+  criterionId: text("criterion_id").notNull().references(() => rubricCriteria.id, { onDelete: "restrict" }),
   score: integer("score").notNull(),
   reason: text("reason"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),

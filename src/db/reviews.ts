@@ -1,7 +1,7 @@
 import { pgTable, text, integer, timestamp, uuid, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { profiles } from "./schema";
+import { profiles, rubricCriteria } from "./schema";
 
 // ─── E3: Review / Annotation ────────────────────────────────────────────────
 
@@ -36,14 +36,14 @@ export const reviews = pgTable(
 
 /**
  * Score for a single rubric criterion within a review.
- * FK to reviews is string-typed; criterion_id string-typed (no cross-file reference).
+ * FK to reviews is string-typed.
  */
 export const reviewScores = pgTable("review_scores", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
   /** FK → reviews.id */
   reviewId: text("review_id").notNull(),
   /** FK → rubric_criteria.id */
-  criterionId: text("criterion_id").notNull(),
+  criterionId: text("criterion_id").notNull().references(() => rubricCriteria.id, { onDelete: "restrict" }),
   score: integer("score").notNull(),
   reason: text("reason"),
   createdAt: timestamp("created_at").notNull().$defaultFn(() => new Date()),
