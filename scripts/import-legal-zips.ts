@@ -1,8 +1,8 @@
 /**
  * One-shot import: load 2 zip files of legal articles into 2 batches.
  *
- *   under_80_json.zip → batch "Pháp lý — điểm < 80"
- *   over_80_json.zip  → batch "Pháp lý — điểm ≥ 80"
+ *   under_80_json.zip → batch "Pháp lý - điểm < 80"
+ *   over_80_json.zip  → batch "Pháp lý - điểm ≥ 80"
  *
  * Idempotent via batch.name lookup. Re-running skips creation when batch exists.
  *
@@ -31,12 +31,12 @@ interface BatchSpec {
 const BATCHES: BatchSpec[] = [
   {
     zipPath: process.argv[2] ?? "/Users/haido/Downloads/under_80_json.zip",
-    name: "Pháp lý — điểm < 80",
+    name: "Pháp lý - điểm < 80",
     filename: "under_80_json.zip",
   },
   {
     zipPath: process.argv[3] ?? "/Users/haido/Downloads/over_80_json.zip",
-    name: "Pháp lý — điểm ≥ 80",
+    name: "Pháp lý - điểm ≥ 80",
     filename: "over_80_json.zip",
   },
 ];
@@ -58,7 +58,7 @@ async function findAdminId(supa: ReturnType<typeof makeStorage>): Promise<string
   const { data, error } = await supa.auth.admin.listUsers({ perPage: 1000 });
   if (error) throw error;
   const admin = data.users.find((u) => u.email === ADMIN_EMAIL);
-  if (!admin) throw new Error(`Admin ${ADMIN_EMAIL} not found — run pnpm seed:local first`);
+  if (!admin) throw new Error(`Admin ${ADMIN_EMAIL} not found - run pnpm seed:local first`);
   return admin.id;
 }
 
@@ -74,7 +74,7 @@ async function importBatch(
     .where(eq(schema.batches.name, spec.name));
 
   if (existing) {
-    console.log(`  · batch "${spec.name}" already exists (${existing.id}) — skipping`);
+    console.log(`  · batch "${spec.name}" already exists (${existing.id}) - skipping`);
     return;
   }
 

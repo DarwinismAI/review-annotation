@@ -252,7 +252,7 @@ function computeTimesPerAssignment(rows: TimeRow[]): Map<string, TimeSplit> {
         else scoringMs += duration;
         lastStart = null;
       } else if (ev.eventType === "tab_visible" && lastStart === null) {
-        // Resume — treat as same type as last known context; skip for simplicity.
+        // Resume - treat as same type as last known context; skip for simplicity.
       }
     }
 

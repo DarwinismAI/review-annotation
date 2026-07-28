@@ -6,7 +6,7 @@
  *
  * Algorithm:
  *   1. Walk the flattened op list; maintain active fill color.
- *   2. F1: sectionBgColor is STICKY — set by colored path-fill ops (f/B/EF).
+ *   2. F1: sectionBgColor is STICKY - set by colored path-fill ops (f/B/EF).
  *      Reset ONLY when a NEUTRAL path-fill op fires, or at page-end.
  *      setFillRGBColor for dark text glyphs does NOT affect sectionBgColor.
  *   3. F2: At each colored fill op boundary, flush the current glyph accumulation.
@@ -28,7 +28,7 @@ const MAX_SEGMENTS = 300;
 export type SegmentColor = "green" | "yellow" | "red" | "neutral";
 export type SegmentType = "highlight" | "badge" | "warning" | "score" | "text";
 
-/** Returned from extractColoredSegments — omits id/articleId (caller fills those) */
+/** Returned from extractColoredSegments - omits id/articleId (caller fills those) */
 export interface ArticleSegmentData {
   order: number;
   text: string;
@@ -46,7 +46,7 @@ function luminance(r: number, g: number, b: number): number {
 }
 
 /**
- * True when an RGB fill is "neutral" — white, black, gray, or near-dark.
+ * True when an RGB fill is "neutral" - white, black, gray, or near-dark.
  * Used in F1 to decide whether a path-fill op resets sectionBgColor.
  */
 function isNeutralFill(rgb: RGB): boolean {
@@ -76,7 +76,7 @@ function classifyColor(rgb: RGB): SegmentColor {
   // Green: G > R+15 AND G > B+15 (luminance floor lowered to 0.35 for Vivipedia green)
   if (g > r + 15 && g > b + 15 && lum > 0.35) return "green";
 
-  // F3: Yellow — wide band covers pure yellow (255,255,0) AND amber (254,154,0).
+  // F3: Yellow - wide band covers pure yellow (255,255,0) AND amber (254,154,0).
   // Checked BEFORE red so amber (|R-G|=100) does not misfire via red path.
   if (r > 200 && g > 100 && b < 120 && r >= g) return "yellow";
 
@@ -132,7 +132,7 @@ function glyphsToString(args: unknown[]): string {
 export async function extractColoredSegments(
   buf: Buffer
 ): Promise<ArticleSegmentData[] | null> {
-  // Lazy import — keeps pdfjs out of the webpack bundle for non-PDF routes.
+  // Lazy import - keeps pdfjs out of the webpack bundle for non-PDF routes.
   // pdfjs-dist v4 ships only the .mjs entry for the legacy build.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs" as string);
@@ -170,18 +170,18 @@ export async function extractColoredSegments(
     // Active fill color (updated by setFillRGB/Gray/Color).
     let activeFillColor: RGB = { r: 0, g: 0, b: 0 };
 
-    // F1: sectionBgColor is STICKY — updated ONLY by path-fill ops (fill/eoFill/fillStroke).
+    // F1: sectionBgColor is STICKY - updated ONLY by path-fill ops (fill/eoFill/fillStroke).
     // setFillRGBColor for dark text glyphs is intentionally NOT allowed to reset this.
     // Reset on page-end, or when a NEUTRAL path-fill fires (e.g. white background rect).
     let sectionBgColor: SegmentColor = "neutral";
 
-    // F4: pendingTextColor — set by setFillRGBColor when no path-fill follows before showText.
+    // F4: pendingTextColor - set by setFillRGBColor when no path-fill follows before showText.
     // Only active when sectionBgColor === "neutral" (no colored bg section already established).
     // Cleared once a path-fill fires (which means the fill painted a background rect, not text).
     let pendingTextColor: SegmentColor = "neutral";
     let sinceLastPathFill = true; // true = no path-fill has fired since last setFillRGB
 
-    // F2: Current accumulation buffer — flushed on EACH colored fill op boundary.
+    // F2: Current accumulation buffer - flushed on EACH colored fill op boundary.
     // This ensures each green bullet block becomes its own chunk (not one merged blob).
     let accText = "";
     let accColor: SegmentColor = "neutral";
@@ -226,7 +226,7 @@ export async function extractColoredSegments(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const a = args as any;
         activeFillColor = { r: a[0] ?? 0, g: a[1] ?? 0, b: a[2] ?? 0 };
-        // F1: do NOT touch sectionBgColor here — dark text fills would reset it.
+        // F1: do NOT touch sectionBgColor here - dark text fills would reset it.
         // F4: classify as candidate text color (only applies if showText fires before next fill op).
         pendingTextColor = classifyColor(activeFillColor);
         sinceLastPathFill = true;
@@ -262,7 +262,7 @@ export async function extractColoredSegments(
       if (name === "fill" || name === "eoFill" || name === "fillStroke") {
         const bgColor = classifyColor(activeFillColor);
 
-        // F2: Each colored fill op is a segment boundary — flush current accumulation
+        // F2: Each colored fill op is a segment boundary - flush current accumulation
         // BEFORE starting a new segment under the new fill color.
         if (bgColor !== "neutral" || (accColor !== "neutral" && accText)) {
           flushAcc();
@@ -285,7 +285,7 @@ export async function extractColoredSegments(
         continue;
       }
 
-      // ── Stroke/path-close ops — also end the text-color path ───────────────
+      // ── Stroke/path-close ops - also end the text-color path ───────────────
       if (
         name === "stroke" || name === "closeStroke" ||
         name === "closeFillStroke" || name === "eoFillStroke" ||
@@ -301,12 +301,12 @@ export async function extractColoredSegments(
         const text = glyphsToString(args);
         if (!text.trim()) continue;
 
-        // F4: Text-color glyph path — active ONLY when there is no colored section bg
+        // F4: Text-color glyph path - active ONLY when there is no colored section bg
         // (sectionBgColor === "neutral"). A dark setFillRGBColor inside a yellow/green
         // section is used for text rendering, not as a segment color signal.
         let effectiveColor: SegmentColor;
         if (sinceLastPathFill && pendingTextColor !== "neutral" && sectionBgColor === "neutral") {
-          // No bg section active — this setFillRGB is the text's own color (e.g. red warning).
+          // No bg section active - this setFillRGB is the text's own color (e.g. red warning).
           effectiveColor = pendingTextColor;
           hasColoredFill = true;
           if (accColor !== effectiveColor && accText) {
@@ -344,7 +344,7 @@ export async function extractColoredSegments(
   if (!hasColoredFill) return null;
 
   // Filter out any empty or neutral chunks that slipped through.
-  // No cross-fill merge — each fill-op boundary already produced one accumulated chunk.
+  // No cross-fill merge - each fill-op boundary already produced one accumulated chunk.
   const finalChunks = rawChunks.filter(c => c.text.trim() && c.color !== "neutral");
 
   // Cap at MAX_SEGMENTS, classify, emit

@@ -49,7 +49,7 @@ export default function RubricEditPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center">
         <p className="text-slate-400 text-sm">Đang tải...</p>
       </div>
     );
@@ -57,7 +57,7 @@ export default function RubricEditPage({
 
   if (error || !rubric) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center">
         <p className="text-red-500 text-sm">{error ?? "Không tìm thấy metric"}</p>
       </div>
     );

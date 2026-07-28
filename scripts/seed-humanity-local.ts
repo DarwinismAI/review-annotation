@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 
 const DB_PATH = process.env.LOCAL_DB_PATH ?? "file:./local.db";
 const SOURCE_PATH = process.argv[2] ?? "/Users/haido/Downloads/humanity_output.json";
-const BATCH_NAME = "Humanity — An toàn - Tuân thủ";
+const BATCH_NAME = "Humanity - An toàn - Tuân thủ";
 const DOMAIN = "safety_compliance";
 const SUB_DOMAIN = "saf_01";
 const ADMIN_ID = "00000000-0000-0000-0000-000000000001";
@@ -187,7 +187,7 @@ async function main() {
     const item = items[i];
     const decision = requireText(item.dims?.policy_decision, "unknown");
     const severity = requireText(item.label?.severity, "unknown");
-    const title = `Log ${String(i + 1).padStart(2, "0")} — ${severity} — ${decision}`;
+    const title = `Log ${String(i + 1).padStart(2, "0")} - ${severity} - ${decision}`;
     const articleId = createId();
     const payload = buildPayload(item, i, title);
 

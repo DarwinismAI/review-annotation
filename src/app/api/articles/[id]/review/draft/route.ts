@@ -8,7 +8,7 @@ import { createId } from "@paralleldrive/cuid2";
 
 /**
  * POST /api/articles/[id]/review/draft
- * Auto-save endpoint — called every 30s from client on input change.
+ * Auto-save endpoint - called every 30s from client on input change.
  * Accepts partial data; no required-metric validation.
  * Upserts a draft review and its scores.
  */

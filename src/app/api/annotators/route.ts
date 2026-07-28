@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { expertProfiles, expertDomains, expertSubDomains, expertMedicalMicroDomains, profiles } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
-/** GET /api/annotators — list annotators (admin only). */
+/** GET /api/annotators - list annotators (admin only). */
 export const GET = requireAdmin(async (req) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
@@ -30,7 +30,7 @@ export const GET = requireAdmin(async (req) => {
     .innerJoin(profiles, eq(expertProfiles.userId, profiles.id))
     .where(conditions.length ? and(...conditions) : undefined);
 
-  // Two batched lookups instead of N+1 — keeps the list responsive even with many annotators.
+  // Two batched lookups instead of N+1 - keeps the list responsive even with many annotators.
   const userIds = rows.map((r) => r.userId);
   const domainsByUser = new Map<string, string[]>();
   const subDomainsByUser = new Map<string, string[]>();

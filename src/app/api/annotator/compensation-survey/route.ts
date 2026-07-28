@@ -37,7 +37,7 @@ export const POST = requireAnnotator(async (req, session) => {
       unit: parsed.data.unit,
     });
   } catch (e: unknown) {
-    // UNIQUE violation = already submitted — treat as success (idempotent).
+    // UNIQUE violation = already submitted - treat as success (idempotent).
     // SQLite via libsql: Drizzle wraps the error; violation lives in e.cause.
     // PG via postgres-js: violation is on e directly with code "23505".
     const err = e as { code?: string; cause?: { code?: string; message?: string }; message?: string };

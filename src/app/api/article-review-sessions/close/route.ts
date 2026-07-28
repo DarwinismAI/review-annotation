@@ -11,7 +11,7 @@ type CloseReason = "navigate" | "blur" | "submit";
  * PATCH /api/article-review-sessions/close
  * Body: { sessionId: string, reason: 'navigate' | 'blur' | 'submit' }
  *
- * Closes an open session. Idempotent — only updates rows where end_at IS NULL.
+ * Closes an open session. Idempotent - only updates rows where end_at IS NULL.
  * end_at is clamped via LEAST(now(), start_at + interval '90 minutes') on the server.
  * Returns { ok: true }.
  */
@@ -49,7 +49,7 @@ export const PATCH = requireAnnotator(async (req: NextRequest, session) => {
     .where(eq(articleReviewSession.id, sessionId));
 
   if (!row) {
-    // Session not found — treat as already closed (idempotent)
+    // Session not found - treat as already closed (idempotent)
     return NextResponse.json({ ok: true });
   }
 
@@ -70,7 +70,7 @@ export const PATCH = requireAnnotator(async (req: NextRequest, session) => {
     );
   }
 
-  // Idempotent close — only updates if still open
+  // Idempotent close - only updates if still open
   await closeOpenSessions({ sessionId }, reason);
 
   return NextResponse.json({ ok: true });

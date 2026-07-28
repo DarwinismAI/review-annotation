@@ -21,7 +21,7 @@ import {
 /**
  * Extract + validate sub_domain_id from a JSON article payload.
  * Accepts both `sub_domain_id` and `subDomainId` keys (publisher-side naming drift).
- * Rejects values whose parent domain mismatches the batch's domain — null on mismatch
+ * Rejects values whose parent domain mismatches the batch's domain - null on mismatch
  * keeps the row insertable; broadcast filter then treats it as "no narrowing".
  */
 function extractArticleTaxonomy(payload: Record<string, unknown>, batchDomain: DomainKey) {
@@ -49,14 +49,14 @@ function extractArticleTaxonomy(payload: Record<string, unknown>, batchDomain: D
 }
 
 // Process ZIPs up to ~200MB downloaded from Supabase Storage.
-// (Platform-side body limit no longer applies — client uploads to storage directly.)
+// (Platform-side body limit no longer applies - client uploads to storage directly.)
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 
 // Let the Node runtime allocate more time for large ZIPs.
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** GET /api/batches — list batches (admin only) */
+/** GET /api/batches - list batches (admin only) */
 export const GET = requireAdmin(async (req) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
@@ -102,11 +102,11 @@ export const GET = requireAdmin(async (req) => {
 });
 
 /**
- * POST /api/batches — create batch from a ZIP already uploaded to Supabase Storage.
+ * POST /api/batches - create batch from a ZIP already uploaded to Supabase Storage.
  *
  * Request JSON: { name, domain, articleType, payRatePerArticle?, storageKey, filename }
- *   storageKey — path returned by /api/batches/upload-url (client PUT target)
- *   filename   — original filename (for display, persisted on the batch row)
+ *   storageKey - path returned by /api/batches/upload-url (client PUT target)
+ *   filename   - original filename (for display, persisted on the batch row)
  *
  * Server downloads the ZIP from storage (not via the request body → bypasses the
  * Vercel ~4.5MB function body limit), validates + extracts PDFs, writes batch + articles.

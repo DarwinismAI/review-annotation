@@ -12,10 +12,10 @@ const MAX_PARAGRAPH_CHARS = 10_000;
 /**
  * Extract an ordered list of paragraph strings from a PDF buffer.
  * Returns [] on parse failure or if the PDF has no extractable text layer.
- * Caller should log failures and continue — this is intentionally non-throwing.
+ * Caller should log failures and continue - this is intentionally non-throwing.
  *
  * pdf-parse is required lazily (inside function) to avoid top-level require() breaking
- * Vercel Node serverless bundle initialization — the module uses fs at load time which
+ * Vercel Node serverless bundle initialization - the module uses fs at load time which
  * fails before the function body executes.
  */
 export async function extractParagraphs(buffer: Buffer): Promise<string[]> {

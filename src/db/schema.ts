@@ -12,7 +12,7 @@ import { createId } from "@paralleldrive/cuid2";
 
 const authSchema = pgSchema("auth");
 
-/** Read-only reference to Supabase's auth.users — drizzle FK target for `profiles`. */
+/** Read-only reference to Supabase's auth.users - drizzle FK target for `profiles`. */
 export const authUsers = authSchema.table("users", {
   id: uuid("id").primaryKey(),
   email: text("email"),
@@ -56,7 +56,7 @@ export const expertProfiles = pgTable(
 );
 
 /**
- * Multi-domain join — expert can opt into product domains.
+ * Multi-domain join - expert can opt into product domains.
  * Source-of-truth for /annotator/articles broadcast filtering.
  * `expert_profiles.domain` retained as primary/back-compat field; new code reads here.
  */
@@ -79,7 +79,7 @@ export const expertDomains = pgTable(
  * (`law_*` / `med_*` / `trv_*` / `saf_*`). Taxonomy: seed_data/[Vivipedia] Dataset_Definition_Final.csv.
  *
  * Semantics: an empty set for a given parent domain means "any sub-domain of that domain"
- * (no narrowing). Only persisted for domains the expert is opted into — API validates the prefix.
+ * (no narrowing). Only persisted for domains the expert is opted into - API validates the prefix.
  */
 export const expertSubDomains = pgTable(
   "expert_sub_domains",
@@ -118,7 +118,7 @@ export const expertMedicalMicroDomains = pgTable(
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
     userId: uuid("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
-    /** med_01_01..med_07_05 — app validation owns the concrete taxonomy. */
+    /** med_01_01..med_07_05 - app validation owns the concrete taxonomy. */
     microDomainId: text("micro_domain_id").notNull(),
     createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
   },
@@ -150,12 +150,12 @@ export const batches = pgTable(
     /** "ready" | "in_progress" | "completed" */
     status: text("status").notNull().default("ready"),
     /**
-     * "manual" — admin assigns each article (legacy v1 default).
-     * "broadcast" — experts in matching domain self-claim from open pool.
+     * "manual" - admin assigns each article (legacy v1 default).
+     * "broadcast" - experts in matching domain self-claim from open pool.
      * UI labels: "Thủ công" / "Tự động" via lib/labels.ts (NEVER show "broadcast" in UI).
      */
     assignmentMode: text("assignment_mode").notNull().default("manual"),
-    /** Required when assignmentMode = "broadcast" — pool closes for new claimants after this. */
+    /** Required when assignmentMode = "broadcast" - pool closes for new claimants after this. */
     broadcastExpiresAt: timestamp("broadcast_expires_at"),
     createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
     createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
@@ -193,11 +193,11 @@ export const articles = pgTable(
     sourceFormat: text("source_format").notNull().default("pdf"),
     /**
      * Storage key for the raw source file (.json or .pdf) under the batch's
-     * folder. Optional — pdfStorageKey holds the same info for older rows.
+     * folder. Optional - pdfStorageKey holds the same info for older rows.
      */
     sourceStorageKey: text("source_storage_key"),
     /**
-     * Full structured payload for sourceFormat='json' — verbatim JSON text
+     * Full structured payload for sourceFormat='json' - verbatim JSON text
      * containing title, sections[], claims[], scores etc. Empty for PDF rows.
      */
     payloadJson: text("payload_json"),
@@ -354,10 +354,10 @@ export const articleSegments = pgTable(
 
 // ─── E3: Inline Comments + Claim Uncertainty (Round-9 prototype) ─────────────
 //
-// article_comments — expert inline annotations anchored to a text quote within a section.
+// article_comments - expert inline annotations anchored to a text quote within a section.
 //   Anchor resolution: hybrid (quote + prefix/suffix + offset fallback).
 //
-// claim_ratings — 3-way verdict per claim per assignment.
+// claim_ratings - 3-way verdict per claim per assignment.
 //   Toggle off = DELETE row (no verdict). unsure_ratio = COUNT FILTER WHERE verdict='unsure' / COUNT(*).
 
 /**
@@ -372,9 +372,9 @@ export const articleComments = pgTable(
     articleId: text("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
     assignmentId: text("assignment_id").notNull().references(() => assignments.id, { onDelete: "cascade" }),
     expertId: uuid("expert_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
-    /** 'sec-0' | 'sec-1' | 'sec-2' … — string index identifying the article section */
+    /** 'sec-0' | 'sec-1' | 'sec-2' … - string index identifying the article section */
     sectionId: text("section_id").notNull(),
-    /** Selected text content — primary key for hybrid anchor resolver */
+    /** Selected text content - primary key for hybrid anchor resolver */
     anchorQuote: text("anchor_quote").notNull(),
     /** ~30 chars immediately before anchorQuote */
     anchorPrefix: text("anchor_prefix"),
@@ -383,7 +383,7 @@ export const articleComments = pgTable(
     /** Best-effort byte offset of anchorQuote start within section text (nullable fallback) */
     anchorOffsetStart: integer("anchor_offset_start"),
     anchorOffsetEnd: integer("anchor_offset_end"),
-    /** Comment body — 1 to 2000 characters */
+    /** Comment body - 1 to 2000 characters */
     body: text("body").notNull(),
     /** "open" | "resolved" */
     status: text("status").notNull().default("open"),

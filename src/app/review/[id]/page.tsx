@@ -368,7 +368,7 @@ export default function ReviewPage({
             setComments(cJson.comments ?? []);
           }
         } catch {
-          // Non-fatal — comments load is best-effort
+          // Non-fatal - comments load is best-effort
         }
 
         // Restore draft if present
@@ -507,7 +507,7 @@ export default function ReviewPage({
           body: JSON.stringify({ scores: flatScores }),
         });
       } catch {
-        // Non-fatal — autosave is best-effort
+        // Non-fatal - autosave is best-effort
       }
     },
     [data, id, activeSectionIdx]
@@ -558,7 +558,7 @@ export default function ReviewPage({
     setCompleting(true);
     const criteria = data.rubric?.criteria ?? [];
 
-    // Close session before submitting (best-effort — failure does not block submit)
+    // Close session before submitting (best-effort - failure does not block submit)
     if (reviewSessionId) {
       try {
         await fetch("/api/article-review-sessions/close", {
@@ -620,7 +620,7 @@ export default function ReviewPage({
   const activeSection = sections[activeSectionIdx];
   const activeScore = scores[activeSectionIdx] ?? emptyScore(criteria);
 
-  // Stable dangerouslySetInnerHTML payload — without memoization React rebuilds
+  // Stable dangerouslySetInnerHTML payload - without memoization React rebuilds
   // the object every render, which makes it re-apply innerHTML on the section
   // content div and wipe out the <mark> tags inserted by the comment effect.
   const sectionContentHtml = useMemo(
@@ -662,7 +662,7 @@ export default function ReviewPage({
   }
 
   return (
-    <div className="bg-slate-50 min-h-screen flex flex-col">
+    <div className="bg-slate-50 min-h-[100dvh] flex flex-col">
       {/* ── Header ── */}
       <header className="bg-slate-900 h-14 px-6 flex items-center gap-3 z-20 shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1">

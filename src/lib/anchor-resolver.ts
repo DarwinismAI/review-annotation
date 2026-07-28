@@ -4,7 +4,7 @@
  * Hybrid anchor resolution for inline comment marks.
  *
  * Strategy (matches prototype selection-comment.js resolveAnchor):
- *  1. Try anchorOffsetStart..anchorOffsetEnd first — fast, exact when the DOM
+ *  1. Try anchorOffsetStart..anchorOffsetEnd first - fast, exact when the DOM
  *     is unchanged.
  *  2. If the quoted text at that position doesn't match, fall back to fuzzy
  *     search: indexOf(quote) inside the container's textContent.
@@ -12,7 +12,7 @@
  */
 
 export interface AnchorData {
-  /** Exact quoted text — primary resolution key */
+  /** Exact quoted text - primary resolution key */
   quote: string;
   /** ~30 chars before the quote (context for disambiguation) */
   prefix?: string | null;
@@ -53,7 +53,7 @@ export function resolveAnchor(anchor: AnchorData, container: Element): Range | n
     if (idx >= 0) charOffset = idx;
   }
 
-  // Strategy 3: fuzzy — try prefix+quote, suffix+quote to pick right occurrence
+  // Strategy 3: fuzzy - try prefix+quote, suffix+quote to pick right occurrence
   if (charOffset < 0 && anchor.prefix) {
     const combined = (anchor.prefix ?? "") + quote;
     const idx = fullText.indexOf(combined);

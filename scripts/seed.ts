@@ -1,5 +1,5 @@
 /**
- * Seed script — Supabase Auth edition.
+ * Seed script - Supabase Auth edition.
  * Creates users via admin API (trigger auto-creates profiles rows).
  * Run: pnpm seed:local  OR  npx tsx scripts/seed.ts
  * Safe to re-run: idempotent via email lookup.
@@ -168,7 +168,7 @@ async function main() {
   let rubricId: string;
   if (existingRubric) {
     rubricId = existingRubric.id;
-    console.log("  · law rubric already exists — skipped");
+    console.log("  · law rubric already exists - skipped");
   } else {
     rubricId = createId();
     await db.insert(schema.rubrics).values({
@@ -274,7 +274,7 @@ async function main() {
       },
     ]);
 
-    // 5. Articles — 10 per batch
+    // 5. Articles - 10 per batch
     const lawArticles = Array.from({ length: 10 }, (_, i) => ({
       id: createId(),
       batchId: lawBatchId,
@@ -304,11 +304,11 @@ async function main() {
     await db.insert(schema.articles).values([...lawArticles, ...medArticles]);
     console.log(`  · 2 batches + 20 articles created`);
   } else {
-    console.log(`  · batches already exist (${existingBatches}) — skipped`);
+    console.log(`  · batches already exist (${existingBatches}) - skipped`);
   }
 
   close();
-  console.log("✅ Seed complete — 4 users, 2 batches, 20 articles.");
+  console.log("✅ Seed complete - 4 users, 2 batches, 20 articles.");
 }
 
 main().catch((err) => {

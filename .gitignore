@@ -15,6 +15,7 @@ dist/
 .pnpm-store/
 tsconfig.tsbuildinfo
 .vercel
+.tmp/
 
 # Local dev database
 local.db
@@ -34,4 +35,5 @@ scripts/seed-humanity-dataset-local.ts
 
 supabase/.temp/
 test-results/
+playwright-report/
 migrations-sqlite/

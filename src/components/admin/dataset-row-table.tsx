@@ -40,7 +40,7 @@ export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRo
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
       <Table>
         <TableHeader>
           <TableRow>

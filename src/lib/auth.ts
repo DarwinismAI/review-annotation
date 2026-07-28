@@ -1,5 +1,5 @@
 /**
- * App auth surface — Supabase Auth (path A iter-3).
+ * App auth surface - Supabase Auth (path A iter-3).
  *
  * Backwards-compat shim: existing API routes import `auth.api.getSession({ headers })`
  * (legacy better-auth shape). We re-export the Supabase helpers and provide a tiny
@@ -11,7 +11,7 @@ export type { AppRole, AppSession } from "@/lib/supabase/server";
 export { getSession, requireSession, requireRole, getSupabaseServer, getSupabaseAdmin };
 
 /**
- * Legacy adapter — `auth.api.getSession({ headers })` used to return
+ * Legacy adapter - `auth.api.getSession({ headers })` used to return
  * `{ user: { id, email, role } } | null`. We now ignore the headers arg
  * (Next 15 cookies() reads the request automatically) and synthesize the
  * same shape from the Supabase session.

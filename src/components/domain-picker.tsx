@@ -22,13 +22,13 @@ const DOMAINS: DomainKey[] = [...DOMAIN_KEYS];
  * Multi-select picker for annotator main domains (1-3) and optional sub-domains.
  *
  * Selection model:
- * - `domains` — array of `DomainKey` the annotator opts into.
- * - `subDomains` — array of `SubDomainKey`. Only sub-domains whose parent is in
+ * - `domains` - array of `DomainKey` the annotator opts into.
+ * - `subDomains` - array of `SubDomainKey`. Only sub-domains whose parent is in
  *   `domains` are persisted; when a parent domain is deselected, its sub-domains
  *   are dropped silently. Empty set for a given parent = "any sub-domain of that
- *   domain" (no narrowing) — this matches the API/DB semantics.
+ *   domain" (no narrowing) - this matches the API/DB semantics.
  *
- * Both arrays are controlled — caller owns state. `enforceMinOne` blocks the UI
+ * Both arrays are controlled - caller owns state. `enforceMinOne` blocks the UI
  * from deselecting the last domain (server still validates).
  */
 export interface DomainPickerProps {
@@ -197,7 +197,7 @@ export function DomainPicker({
               <div className="mt-2 ml-1 border border-slate-200 bg-slate-50 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                    Chuyên ngành — {DOMAIN_LABELS[domain]}
+                    Chuyên ngành - {DOMAIN_LABELS[domain]}
                   </p>
                   <button
                     type="button"
@@ -237,7 +237,7 @@ export function DomainPicker({
                 {domain === "medical" && pickedInDomain.length > 0 ? (
                   <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
                     <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                      Nhánh nhỏ hơn — Y tế
+                      Nhánh nhỏ hơn - Y tế
                     </p>
                     {pickedInDomain
                       .filter((subId): subId is keyof typeof MEDICAL_SUB_DOMAIN_TO_MICRO_DOMAINS =>

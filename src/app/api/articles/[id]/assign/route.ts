@@ -16,7 +16,7 @@ import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { domainForSubDomain, subDomainForMedicalMicroDomain } from "@/lib/labels";
 
-/** POST /api/articles/:id/assign — assign a single article to an expert */
+/** POST /api/articles/:id/assign - assign a single article to an expert */
 export const POST = requireAdmin(async (req, _session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {

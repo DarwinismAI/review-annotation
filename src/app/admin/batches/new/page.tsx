@@ -19,7 +19,7 @@ function defaultBroadcastDate(): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Tomorrow as YYYY-MM-DD — minimum allowed broadcast deadline (PRD AC2). */
+/** Tomorrow as YYYY-MM-DD - minimum allowed broadcast deadline (PRD AC2). */
 function tomorrowIso(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -76,7 +76,7 @@ export default function BatchNewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  /** Min date for broadcast deadline picker — must be at least tomorrow. */
+  /** Min date for broadcast deadline picker - must be at least tomorrow. */
   const minBroadcastDate = useMemo(() => tomorrowIso(), []);
 
   function showToast(msg: string) {

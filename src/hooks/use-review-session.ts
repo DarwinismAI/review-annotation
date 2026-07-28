@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
  * - pagehide → sendBeacon /close-by-key (reason: navigate)
  * - unmount → PATCH /close (reason: navigate, best-effort fire-and-forget)
  *
- * Race: if sessionId is not yet set when a beacon fires, we no-op —
+ * Race: if sessionId is not yet set when a beacon fires, we no-op -
  * the server watchdog closes orphans within 90 minutes.
  */
 export function useReviewSession(assignmentId: string): { sessionId: string | null } {
@@ -40,7 +40,7 @@ export function useReviewSession(assignmentId: string): { sessionId: string | nu
           setSessionId(json.sessionId);
         }
       } catch {
-        // Non-fatal — watchdog handles orphan cleanup
+        // Non-fatal - watchdog handles orphan cleanup
       }
     }
 
@@ -48,7 +48,7 @@ export function useReviewSession(assignmentId: string): { sessionId: string | nu
 
     function sendBeacon(reason: "navigate" | "blur") {
       const id = sessionIdRef.current;
-      if (!id) return; // start still pending — watchdog will catch within 90 min
+      if (!id) return; // start still pending - watchdog will catch within 90 min
       const payload = JSON.stringify({ sessionId: id, reason });
       navigator.sendBeacon("/api/article-review-sessions/close-by-key", payload);
     }
@@ -81,7 +81,7 @@ export function useReviewSession(assignmentId: string): { sessionId: string | nu
           credentials: "include",
           keepalive: true,
         }).catch(() => {
-          // Intentionally swallowed — best-effort only
+          // Intentionally swallowed - best-effort only
         });
       }
     };

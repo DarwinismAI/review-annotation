@@ -50,7 +50,7 @@ export function DisabledBanner({ disabledAt, onExpire }: DisabledBannerProps) {
     return (
       <div className="sticky top-16 z-30 bg-red-50 border-y border-red-200 px-6 py-3">
         <p className="text-sm text-red-800 font-medium max-w-7xl mx-auto">
-          Bài đã bị vô hiệu hóa quá 24 giờ — chuyển sang chế độ chỉ đọc.
+          Bài đã bị vô hiệu hóa quá 24 giờ - chuyển sang chế độ chỉ đọc.
         </p>
       </div>
     );

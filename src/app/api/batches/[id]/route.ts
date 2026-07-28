@@ -13,7 +13,7 @@ import { timeEvents } from "@/db/time-events";
 import { eq, and, count, inArray } from "drizzle-orm";
 import { deleteFolder } from "@/lib/supabase-storage";
 
-/** GET /api/batches/:id — batch detail with article status counts */
+/** GET /api/batches/:id - batch detail with article status counts */
 export const GET = requireAdmin(async (_req, _session, context) => {
   const id = context?.params?.id;
   if (!id) {
@@ -105,7 +105,7 @@ export const GET = requireAdmin(async (_req, _session, context) => {
 });
 
 /**
- * DELETE /api/batches/:id — remove a batch plus every derived row and storage object.
+ * DELETE /api/batches/:id - remove a batch plus every derived row and storage object.
  *
  * Derived tables (reviews, review_scores, time_events) only carry text FKs so they
  * wouldn't cascade from the batch drop; we clean them up in dependency order first.
@@ -157,7 +157,7 @@ export const DELETE = requireAdmin(async (_req, _session, context) => {
   await db.delete(articles).where(eq(articles.batchId, id));
   await db.delete(batches).where(eq(batches.id, id));
 
-  // Best-effort storage cleanup — DB truth is already committed.
+  // Best-effort storage cleanup - DB truth is already committed.
   try {
     await deleteFolder(`${id}/`);
   } catch (err) {

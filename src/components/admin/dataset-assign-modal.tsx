@@ -113,8 +113,10 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase text-slate-500">Overlap</div>
-              <Input type="number" min={1} max={5} value={targetOverlap} onChange={(event) => setTargetOverlap(Number(event.target.value))} />
+              <label htmlFor="assign-overlap" className="block text-xs font-semibold uppercase text-slate-500">
+                Overlap
+              </label>
+              <Input id="assign-overlap" type="number" min={1} max={5} value={targetOverlap} onChange={(event) => setTargetOverlap(Number(event.target.value))} />
             </div>
             <div className="space-y-2">
               <div className="text-xs font-semibold uppercase text-slate-500">Preview</div>

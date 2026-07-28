@@ -15,7 +15,7 @@ import {
   isDomainKey,
 } from "@/lib/labels";
 
-/** GET /api/annotator/profile — current annotator's email + domains. */
+/** GET /api/annotator/profile - current annotator's email + domains. */
 export const GET = requireAnnotator(async (_req, session) => {
   const userId = session.user.id;
 
@@ -52,7 +52,7 @@ export const GET = requireAnnotator(async (_req, session) => {
 });
 
 /**
- * PUT /api/annotator/profile — update domains. Validates 1-3 items, replaces atomically.
+ * PUT /api/annotator/profile - update domains. Validates 1-3 items, replaces atomically.
  *
  * Keeps `expert_profiles.domain` synced to the first domain so legacy admin views
  * don't break while we transition fully to expert_domains.
@@ -155,7 +155,7 @@ export const PUT = requireAnnotator(async (req, session) => {
     .where(eq(expertProfiles.userId, userId));
 
   // Backfill broadcast assignments for the (possibly expanded) domain set.
-  // Idempotent — safe to call on every PUT. Failure must not break profile save.
+  // Idempotent - safe to call on every PUT. Failure must not break profile save.
   let assigned = 0;
   try {
     assigned = await assignBroadcastForExpert(userId);

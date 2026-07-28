@@ -25,7 +25,7 @@ export async function getSupabaseServer() {
         try {
           toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
-          // setAll called from a Server Component — middleware refreshes the session instead.
+          // setAll called from a Server Component - middleware refreshes the session instead.
         }
       },
     },
@@ -34,7 +34,7 @@ export async function getSupabaseServer() {
 
 /**
  * Service-role client for privileged ops (admin user creation, bulk imports).
- * Bypasses RLS — never expose to the browser, never use for end-user requests.
+ * Bypasses RLS - never expose to the browser, never use for end-user requests.
  */
 export function getSupabaseAdmin() {
   return createSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -91,7 +91,7 @@ export async function getSession(): Promise<AppSession | null> {
   };
 }
 
-/** Throws 401-equivalent (returns null) if no session — caller decides what to do. */
+/** Throws 401-equivalent (returns null) if no session - caller decides what to do. */
 export async function requireSession(): Promise<AppSession> {
   const session = await getSession();
   if (!session) throw new Error("UNAUTHENTICATED");

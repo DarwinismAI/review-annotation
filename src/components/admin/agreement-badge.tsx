@@ -8,7 +8,7 @@ interface AgreementBadgeProps {
 
 export function AgreementBadge({ agreement }: AgreementBadgeProps) {
   if (agreement === null) {
-    return <span className="text-sm text-slate-400">—</span>;
+    return <span className="text-sm text-slate-400">-</span>;
   }
 
   const color = agreement < 70 ? "text-red-600" : agreement < 85 ? "text-amber-700" : "text-slate-700";

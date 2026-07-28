@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke.sh — quick liveness check against running dev server.
+# smoke.sh - quick liveness check against running dev server.
 # Run: `pnpm smoke:local` (assumes `pnpm dev` running on :3000).
 # Exits non-zero on first failure for CI usability.
 

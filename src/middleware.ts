@@ -8,7 +8,7 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.e
 const PUBLIC_AUTH_PREFIXES = ["/login"];
 
 /**
- * Edge middleware — refreshes the Supabase session cookie on every request to
+ * Edge middleware - refreshes the Supabase session cookie on every request to
  * /admin/** and /annotator/**, then redirects to /login if there's no valid user.
  * The role check happens server-side in the segment layouts.
  */

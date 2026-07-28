@@ -7,7 +7,7 @@ const MAX_COMMENT_LEN = 1000;
 export interface SelectionState {
   /** Raw selected text */
   text: string;
-  /** Bounding rect of selection (page coordinates — not viewport) */
+  /** Bounding rect of selection (page coordinates - not viewport) */
   rect: DOMRect;
   /** The container element with data-anchor-root attribute */
   containerEl: Element;
@@ -30,7 +30,7 @@ interface UseTextSelectionReturn {
  * Tracks text selections within elements that have the `data-anchor-root` attribute.
  * Listens for the `c` key to signal "open composer" (see `isActive`).
  *
- * The hook does NOT render UI — it only tracks state. The consumer decides
+ * The hook does NOT render UI - it only tracks state. The consumer decides
  * when to open the InlineCommentComposer.
  */
 export function useTextSelection(): UseTextSelectionReturn {

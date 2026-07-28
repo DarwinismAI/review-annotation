@@ -126,7 +126,7 @@ export function CompensationSurveyModal({ open, onClose }: Props) {
             )}
           </div>
 
-          {/* Unit selector — card-style */}
+          {/* Unit selector - card-style */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Đơn vị tính</Label>
             <div className="grid grid-cols-2 gap-2">

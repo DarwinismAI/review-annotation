@@ -3,7 +3,7 @@
  *
  * Used by both the expert review page (`/review/[id]`) and the admin preview
  * page (`/admin/articles/[id]/preview`) so they render article section content
- * identically — headings, lists, tables, inline emphasis, and [src_xxx]
+ * identically - headings, lists, tables, inline emphasis, and [src_xxx]
  * citation tokens with hover tooltips.
  *
  * Output is intended for `dangerouslySetInnerHTML`. All user-supplied strings

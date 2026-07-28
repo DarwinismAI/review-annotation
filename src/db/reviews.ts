@@ -9,7 +9,7 @@ import { profiles, rubricCriteria } from "./schema";
  * One review record per (assignment, paragraphId?) pair.
  * paragraphId is null for full-article reviews.
  * FK to assignments and articles are string-typed (no .references()) because
- * those tables live in schema.ts — they are wired at migration time via SQL.
+ * those tables live in schema.ts - they are wired at migration time via SQL.
  */
 export const reviews = pgTable(
   "reviews",

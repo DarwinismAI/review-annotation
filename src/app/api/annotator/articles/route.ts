@@ -15,7 +15,7 @@ import { isDomainKey, type DomainKey } from "@/lib/labels";
  * "broadcast pool to claim" tab is gone. This endpoint paginates the caller's own list.
  *
  * Disabled articles (`enabled = false`) remain visible while the 24h grace window applies
- * — UI handles read-only banner.
+ * - UI handles read-only banner.
  */
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -42,7 +42,7 @@ export const GET = requireAnnotator(async (req, session) => {
     ? and(eq(assignments.expertId, expertId), eq(batches.domain, domainOk))
     : eq(assignments.expertId, expertId);
 
-  // Total count (cheap — no joins needed beyond batches when domain filter is on)
+  // Total count (cheap - no joins needed beyond batches when domain filter is on)
   const totalRows = await db
     .select({ n: sql<number>`COUNT(*)` })
     .from(assignments)

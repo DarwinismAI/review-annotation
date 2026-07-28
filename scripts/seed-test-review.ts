@@ -1,6 +1,6 @@
 /**
  * Seed a real, end-to-end reviewable batch for manual/automated QA:
- *   - test annotator user (annotator@review-annotation.local) — pre-created Supabase Auth account
+ *   - test annotator user (annotator@review-annotation.local) - pre-created Supabase Auth account
  *   - one batch (`E2E Review Seed`) with 1 article backed by a valid PDF in Supabase Storage
  *   - ensures a law rubric exists (reuses `scripts/seed.ts` output when available)
  *   - creates an assignment linking the expert to the article
@@ -26,7 +26,7 @@ const PAY_RATE = 150_000;
 
 /**
  * Build a tiny but RFC-compliant single-page PDF with Vietnamese-ish text
- * (ASCII-safe — Helvetica has no glyphs for accents, the text is just so
+ * (ASCII-safe - Helvetica has no glyphs for accents, the text is just so
  * an expert can confirm they are looking at a real rendered PDF).
  */
 function buildSamplePdf(): Buffer {
@@ -85,7 +85,7 @@ function buildSamplePdf(): Buffer {
 
 async function createDb() {
   if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL required — Postgres only");
+    throw new Error("DATABASE_URL required - Postgres only");
   }
   const { drizzle } = await import("drizzle-orm/postgres-js");
   const postgres = (await import("postgres")).default;
@@ -151,7 +151,7 @@ async function main() {
   );
   console.log(`  · admin: ${ADMIN_EMAIL} (${adminId})`);
 
-  // 2. Expert user — login via email/password at runtime
+  // 2. Expert user - login via email/password at runtime
   const expertId = await findOrCreateAuthUser(
     sb,
     EXPERT_EMAIL,
@@ -166,7 +166,7 @@ async function main() {
     .select({ id: schema.rubrics.id })
     .from(schema.rubrics)
     .where(eq(schema.rubrics.domain, "law"));
-  if (!lawRubric) throw new Error("Law rubric missing — run pnpm seed:local first");
+  if (!lawRubric) throw new Error("Law rubric missing - run pnpm seed:local first");
 
   // 4. Batch + article + storage (create if missing)
   const [existingBatch] = await db
@@ -184,7 +184,7 @@ async function main() {
       .from(schema.articles)
       .where(eq(schema.articles.batchId, batchId));
     if (!existingArticle) {
-      throw new Error(`Batch ${batchId} has no article — corrupted fixture, wipe and retry`);
+      throw new Error(`Batch ${batchId} has no article - corrupted fixture, wipe and retry`);
     }
     articleId = existingArticle.id;
     console.log(`  · reusing batch ${batchId} (article ${articleId})`);
@@ -231,7 +231,7 @@ async function main() {
     console.log(`  · created batch ${batchId} + article ${articleId} (PDF at ${pdfKey})`);
   }
 
-  // 5. Colored segments — seed fixture rows for all color types
+  // 5. Colored segments - seed fixture rows for all color types
   const [existingSegment] = await db
     .select({ id: schema.articleSegments.id })
     .from(schema.articleSegments)
@@ -264,7 +264,7 @@ async function main() {
     console.log(`  · seeded ${fixtureSegments.length} colored segments for article`);
   }
 
-  // 6. Assignment — ensure expert is linked
+  // 6. Assignment - ensure expert is linked
   const [existingAssignment] = await db
     .select({ id: schema.assignments.id })
     .from(schema.assignments)

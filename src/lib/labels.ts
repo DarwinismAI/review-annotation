@@ -3,7 +3,7 @@
  * Internal DB enums (e.g. "broadcast", "law") map to Vietnamese display strings here.
  *
  * INVARIANT: UI components NEVER render raw DB enum values. Always go through these mappers.
- * Specifically: "broadcast" must NEVER appear as user copy — it is rendered as "Tự động".
+ * Specifically: "broadcast" must NEVER appear as user copy - it is rendered as "Tự động".
  */
 
 export const ASSIGNMENT_MODE_LABELS = {
@@ -57,7 +57,7 @@ export function isDomainKey(value: unknown): value is DomainKey {
 // ─── Sub-domain taxonomy ───────────────────────────────────────────────────
 // Source: seed_data/[Vivipedia] Dataset_Definition_Final.csv (3 domains × N sub each).
 // IDs are prefixed by parent domain code (law_*, med_*, trv_*) so the parent can be
-// derived from the ID alone — see `domainForSubDomain` below.
+// derived from the ID alone - see `domainForSubDomain` below.
 
 export const SUB_DOMAIN_LABELS = {
   // Pháp luật
@@ -91,7 +91,7 @@ export const SUB_DOMAIN_LABELS = {
 
 export type SubDomainKey = keyof typeof SUB_DOMAIN_LABELS;
 
-/** Short hint shown under chip / tooltip — purposely terse. */
+/** Short hint shown under chip / tooltip - purposely terse. */
 export const SUB_DOMAIN_HINTS: Record<SubDomainKey, string> = {
   law_01: "Hợp đồng, thừa kế, hôn nhân",
   law_02: "Tội phạm, hình phạt, tố tụng",
@@ -126,7 +126,7 @@ export const DOMAIN_TO_SUB_DOMAINS: Record<DomainKey, readonly SubDomainKey[]> =
   safety_compliance: ["saf_01"],
 };
 
-/** Cheap O(1) prefix check — used by API validation and UI grouping alike. */
+/** Cheap O(1) prefix check - used by API validation and UI grouping alike. */
 const SUB_PREFIX_TO_DOMAIN: Record<string, DomainKey> = {
   law: "law",
   med: "medical",

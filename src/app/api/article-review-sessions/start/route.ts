@@ -55,7 +55,7 @@ export const POST = requireAnnotator(async (req: NextRequest, session) => {
   // 1. Close any existing open sessions for this assignment (reopen).
   await closeOpenSessions({ assignmentId }, "reopen");
 
-  // 2. Insert new session — pass explicit timestamps so schema's defaultNow() (PG `now()`) doesn't fire on SQLite.
+  // 2. Insert new session - pass explicit timestamps so schema's defaultNow() (PG `now()`) doesn't fire on SQLite.
   const now = new Date();
   const sessionId = createId();
   await db.insert(articleReviewSession).values({

@@ -16,7 +16,7 @@ interface Rubric {
 
 function formatDate(raw: number | string): string {
   const d = new Date(typeof raw === "number" ? raw : raw);
-  if (isNaN(d.getTime())) return "—";
+  if (isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
@@ -114,7 +114,7 @@ export default function AdminRubricsPage() {
                           </span>
                         </td>
                         <td className="px-5 py-4 text-slate-600">
-                          {r.scale?.map((item) => item.label).join(" / ") ?? "—"}
+                          {r.scale?.map((item) => item.label).join(" / ") ?? "-"}
                         </td>
                         <td className="px-5 py-4 text-center">
                           {r.required ? "Có" : "Không"}

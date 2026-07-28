@@ -10,7 +10,7 @@ interface AssignmentInput {
   expertId: string;
 }
 
-/** POST /api/batches/:id/assign-bulk — bulk assign articles to annotators. */
+/** POST /api/batches/:id/assign-bulk - bulk assign articles to annotators. */
 export const POST = requireAdmin(async (req: Request, _session: unknown, context?: { params?: { id?: string } }) => {
   const batchId = context?.params?.id;
   if (!batchId) {

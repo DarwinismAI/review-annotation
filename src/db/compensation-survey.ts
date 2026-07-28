@@ -5,7 +5,7 @@ import { profiles } from "./schema";
 
 /**
  * One-time compensation expectation survey per expert.
- * UNIQUE(expert_id) ensures a single response — no edits/replays.
+ * UNIQUE(expert_id) ensures a single response - no edits/replays.
  */
 export const compensationSurveyResponses = pgTable(
   "compensation_survey_responses",

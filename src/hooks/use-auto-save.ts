@@ -12,7 +12,7 @@ interface ScoreEntry {
 interface UseAutoSaveOptions {
   articleId: string;
   paragraphId?: string | null;
-  /** Interval in ms — default 30 000 */
+  /** Interval in ms - default 30 000 */
   intervalMs?: number;
 }
 
@@ -55,7 +55,7 @@ export function useAutoSave({
           JSON.stringify({ scores, savedAt: new Date().toISOString() })
         );
       } catch {
-        // localStorage unavailable — ignore
+        // localStorage unavailable - ignore
       }
 
       try {
@@ -75,7 +75,7 @@ export function useAutoSave({
           toast.success("Đã lưu nháp", { duration: 2000 });
         }
       } catch {
-        // Network error — backup in localStorage already saved
+        // Network error - backup in localStorage already saved
       } finally {
         setIsSaving(false);
       }

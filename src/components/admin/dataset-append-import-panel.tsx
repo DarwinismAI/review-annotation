@@ -82,7 +82,12 @@ export function DatasetAppendImportPanel({ datasetId, onImported }: DatasetAppen
         </div>
         <Upload className="h-4 w-4 text-slate-400" />
       </div>
-      <Input type="file" accept=".json,application/json" onChange={(event) => handleFile(event.target.files?.[0] ?? null)} />
+      <div className="space-y-1.5">
+        <label htmlFor="append-dataset-file" className="block text-sm font-medium text-slate-700">
+          File JSON append
+        </label>
+        <Input id="append-dataset-file" type="file" accept=".json,application/json" onChange={(event) => handleFile(event.target.files?.[0] ?? null)} />
+      </div>
       {status && <div className="text-sm text-slate-700">{status}</div>}
       {rowCount !== null && <Badge variant="success">{rowCount} dòng hợp lệ</Badge>}
       {extraFields.length > 0 && <div className="text-xs text-slate-500">Field thừa: {extraFields.slice(0, 8).join(", ")}</div>}

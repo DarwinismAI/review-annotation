@@ -37,7 +37,7 @@ export default function ExpertTasksPage() {
         <p className="text-sm text-slate-500">Các dòng dataset được giao để chấm metric.</p>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <Table>
           <TableHeader>
             <TableRow>

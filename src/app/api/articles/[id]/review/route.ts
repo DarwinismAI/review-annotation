@@ -348,7 +348,7 @@ export const POST = requireAnnotator(async (req, session, context) => {
     );
   }
 
-  // Enforce 24h grace window for disabled articles — block submit after window closes.
+  // Enforce 24h grace window for disabled articles - block submit after window closes.
   const [articleGrace] = await db
     .select({
       disabledAt: articles.disabledAt,
@@ -366,7 +366,7 @@ export const POST = requireAnnotator(async (req, session, context) => {
         {
           error: {
             code: "GRACE_EXPIRED",
-            message: "Bài đã bị tắt quá 24 giờ — chỉ đọc",
+            message: "Bài đã bị tắt quá 24 giờ - chỉ đọc",
           },
         },
         { status: 403 }

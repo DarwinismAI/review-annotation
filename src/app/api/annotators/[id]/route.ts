@@ -6,7 +6,7 @@ import { expertProfiles, profiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { isDomainKey } from "@/lib/labels";
 
-/** PATCH /api/annotators/:id — update domain or status (admin only) */
+/** PATCH /api/annotators/:id - update domain or status (admin only) */
 export const PATCH = requireAdmin(async (req, _session, context) => {
   const id = context?.params?.id;
   if (!id) {

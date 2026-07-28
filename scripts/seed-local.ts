@@ -321,14 +321,11 @@ CREATE TABLE IF NOT EXISTS annotation_results (
   metric_id TEXT NOT NULL REFERENCES annotation_metrics(id) ON DELETE CASCADE,
   value TEXT,
   note TEXT,
-  status TEXT NOT NULL DEFAULT 'completed',
   submitted_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS annotation_results_assignment_metric_unique ON annotation_results(assignment_id, metric_id);
 CREATE INDEX IF NOT EXISTS annotation_results_row_metric_idx ON annotation_results(row_id, metric_id);
-CREATE INDEX IF NOT EXISTS annotation_results_assignment_status_idx ON annotation_results(assignment_id, status);
-CREATE INDEX IF NOT EXISTS annotation_results_row_metric_status_idx ON annotation_results(row_id, metric_id, status);
 `;
 
 async function main() {
@@ -352,7 +349,7 @@ PRAGMA foreign_keys=ON;`);
   }
 
   // Idempotent column adds for existing local.db files that pre-date sub-domain support.
-  // SQLite has no "ADD COLUMN IF NOT EXISTS" — swallow the duplicate-column error.
+  // SQLite has no "ADD COLUMN IF NOT EXISTS" - swallow the duplicate-column error.
   // Index is re-created after ALTER because the index in the main SQL block fails
   // silently when the column doesn't yet exist on first patch run.
   const POST_ALTER = [
@@ -360,9 +357,6 @@ PRAGMA foreign_keys=ON;`);
     `CREATE INDEX IF NOT EXISTS articles_sub_domain_idx ON articles(sub_domain_id)`,
     `ALTER TABLE articles ADD COLUMN medical_micro_domain_id TEXT`,
     `CREATE INDEX IF NOT EXISTS articles_medical_micro_domain_idx ON articles(medical_micro_domain_id)`,
-    `ALTER TABLE annotation_results ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'`,
-    `CREATE INDEX IF NOT EXISTS annotation_results_assignment_status_idx ON annotation_results(assignment_id, status)`,
-    `CREATE INDEX IF NOT EXISTS annotation_results_row_metric_status_idx ON annotation_results(row_id, metric_id, status)`,
   ];
   for (const stmt of POST_ALTER) {
     try {

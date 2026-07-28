@@ -23,7 +23,7 @@ interface AppShellProps {
  * - Renders fixed sidebar (w-56) + top bar + scrollable content area.
  *
  * Pages that need full-viewport (e.g. the review split-panel) should NOT
- * use this shell — they live under `/review/` with their own layout.
+ * use this shell - they live under `/review/` with their own layout.
  */
 export async function AppShell({ children, variant }: AppShellProps) {
   const session = await getSession();
@@ -39,11 +39,11 @@ export async function AppShell({ children, variant }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-[100dvh] bg-slate-50 flex">
         <AppSidebar variant={variant} role={session.role} />
       <div className="flex-1 flex flex-col min-w-0">
         <AppHeader />
-        <main className="flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 lg:pb-6">
+        <main className="min-w-0 flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 lg:pb-6">
           {children}
         </main>
       </div>

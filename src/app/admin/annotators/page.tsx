@@ -51,9 +51,9 @@ function avatarColor(idx: number): string {
 }
 
 function formatDate(raw: number | string | null): string {
-  if (!raw) return "—";
+  if (!raw) return "-";
   const d = new Date(typeof raw === "number" ? raw : raw);
-  if (isNaN(d.getTime())) return "—";
+  if (isNaN(d.getTime())) return "-";
   return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
 }
 
@@ -239,7 +239,7 @@ function DomainSubDomainCell({
   );
 
   if (validDomains.length === 0) {
-    return <span className="text-slate-400 text-xs">—</span>;
+    return <span className="text-slate-400 text-xs">-</span>;
   }
 
   const MAX_VISIBLE = 3;

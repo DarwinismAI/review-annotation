@@ -8,7 +8,7 @@ import { eq, and } from "drizzle-orm";
 
 /**
  * POST /api/articles/[id]/review/lock
- * Admin-only. Locks all reviews for an article — expert can no longer edit.
+ * Admin-only. Locks all reviews for an article - expert can no longer edit.
  */
 export const POST = requireAdmin(async (req, session, context) => {
   const articleId = context?.params?.id;

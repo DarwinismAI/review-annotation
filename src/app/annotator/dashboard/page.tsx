@@ -173,7 +173,7 @@ export default function ExpertDashboardPage() {
                         </td>
                         <td className="px-5 py-3 text-center">
                           <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-600">
-                            {art.timeSpentMinutes === null ? "—" : `${art.timeSpentMinutes} phút`}
+                            {art.timeSpentMinutes === null ? "-" : `${art.timeSpentMinutes} phút`}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-center">

@@ -11,7 +11,7 @@ function deriveArticleStatus(rows: { status: string }[]) {
   return "assigned";
 }
 
-/** POST /api/articles/:id/revoke-assignment — revoke one not-yet-started assignment. */
+/** POST /api/articles/:id/revoke-assignment - revoke one not-yet-started assignment. */
 export const POST = requireAdmin(async (req, _session, context) => {
   const articleId = context?.params?.id;
   if (!articleId) {

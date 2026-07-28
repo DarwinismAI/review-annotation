@@ -211,7 +211,7 @@ function MetricPreviewControl({
 
 /**
  * Stars that look + feel exactly like the annotator's rubric stars (hover, click,
- * fill state) but never call any persistence — admin preview is throwaway.
+ * fill state) but never call any persistence - admin preview is throwaway.
  */
 function PreviewStars({
   rating,
@@ -268,7 +268,7 @@ export default function AdminPreviewPage({
   const [showOnlyUnsure, setShowOnlyUnsure] = useState(false);
   const [activeTab, setActiveTab] = useState<"rubric" | "comments">("rubric");
 
-  // Throwaway local ratings — admin can play with stars but nothing persists.
+  // Throwaway local ratings - admin can play with stars but nothing persists.
   const [criteriaRatings, setCriteriaRatings] = useState<Record<string, number>>({});
   const [claimRatingsLocal, setClaimRatingsLocal] = useState<Record<string, number>>({});
 
@@ -388,7 +388,7 @@ export default function AdminPreviewPage({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span className="text-sm font-semibold">
-            Đang preview như annotator — Read-only mode. Mọi thay đổi sẽ không được lưu.
+            Đang preview như annotator - Read-only mode. Mọi thay đổi sẽ không được lưu.
             {data.assignment?.expertName && (
               <span className="font-normal ml-1">
                 (Đang xem assignment của <strong>{data.assignment.expertName}</strong>)
@@ -438,7 +438,7 @@ export default function AdminPreviewPage({
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <span className="text-slate-400 text-sm">
-            {sections.length > 0 ? `${activeSectionIdx + 1}/${sections.length}` : "—"}
+            {sections.length > 0 ? `${activeSectionIdx + 1}/${sections.length}` : "-"}
           </span>
           {totalComments > 0 && (
             <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[11px] rounded-full">
@@ -497,7 +497,7 @@ export default function AdminPreviewPage({
                   {data.assignment ? (
                     <>
                       <p>
-                        Annotator: <strong>{data.assignment.expertName ?? "—"}</strong>
+                        Annotator: <strong>{data.assignment.expertName ?? "-"}</strong>
                       </p>
                       <p>
                         Status: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">{data.assignment.status}</code>
@@ -598,7 +598,7 @@ export default function AdminPreviewPage({
               )}
             </div>
             <h2 className="text-xl font-bold text-slate-900 mb-4 leading-snug">
-              {activeSection?.heading ?? "—"}
+              {activeSection?.heading ?? "-"}
             </h2>
             <div
               className="content-text text-[15px] text-slate-700 leading-7"
@@ -673,7 +673,7 @@ export default function AdminPreviewPage({
                   </div>
                   {criteria.length === 0 ? (
                     <p className="text-xs text-slate-400 italic">
-                      Chưa có metric cho lĩnh vực {data.batch?.domain ?? "—"}.
+                      Chưa có metric cho lĩnh vực {data.batch?.domain ?? "-"}.
                     </p>
                   ) : (
                     <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-0">
@@ -736,7 +736,7 @@ export default function AdminPreviewPage({
                             </p>
                             <div className="flex items-center justify-between mt-2 text-xs text-slate-400">
                               <span>
-                                Confidence: <strong>{claim.confidence ?? "—"}</strong>
+                                Confidence: <strong>{claim.confidence ?? "-"}</strong>
                                 {claim.source_ids && claim.source_ids.length > 0 && (
                                   <> · Nguồn: {claim.source_ids.join(", ")}</>
                                 )}
@@ -772,7 +772,7 @@ export default function AdminPreviewPage({
                 )}
               </>
             ) : (
-              /* "Đánh giá thực tế" tab — DB comments + verdicts */
+              /* "Đánh giá thực tế" tab - DB comments + verdicts */
               <>
                 {/* Filter toggle */}
                 <div className="flex items-center justify-between">
@@ -874,7 +874,7 @@ export default function AdminPreviewPage({
             )}
           </div>
 
-          {/* Bottom nav — mirrors the expert-view layout. "Nộp bài" stays
+          {/* Bottom nav - mirrors the expert-view layout. "Nộp bài" stays
               disabled because admin preview is read-only. */}
           <div className="border-t border-slate-200 bg-white px-4 py-3 flex gap-2 shrink-0">
             <button
@@ -889,7 +889,7 @@ export default function AdminPreviewPage({
               <button
                 type="button"
                 disabled
-                title="Read-only — admin preview không thể nộp"
+                title="Read-only - admin preview không thể nộp"
                 className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white opacity-40 cursor-not-allowed"
               >
                 ✓ Nộp bài

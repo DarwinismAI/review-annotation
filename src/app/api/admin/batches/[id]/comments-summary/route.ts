@@ -125,7 +125,7 @@ export const GET = requireAdmin(async (_req, _session, context) => {
   const incorrectRatio = totalRatings > 0 ? incorrectCount / totalRatings : 0;
   const unsureRatio = totalRatings > 0 ? unsureCount / totalRatings : 0;
 
-  // Top 5 articles by unsure ratio — calculated per article
+  // Top 5 articles by unsure ratio - calculated per article
   // For each article, count verdicts by verdict type from its assignments
   let topUnsureArticles: Array<{
     articleId: string;

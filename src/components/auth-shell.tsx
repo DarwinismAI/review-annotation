@@ -7,7 +7,7 @@ import Link from "next/link";
  * Two-panel auth chrome shared by auth screens.
  * Left panel = navy brand block; right panel = the form supplied via children.
  *
- * `progress` renders the wizard dots — pass `null` for single-step screens (login B1).
+ * `progress` renders the wizard dots - pass `null` for single-step screens (login B1).
  */
 export interface AuthShellProps {
   /** Left-panel headline, e.g. "Đăng nhập nội bộ". */
@@ -35,7 +35,7 @@ export function AuthShell({
   children,
 }: AuthShellProps) {
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-[100dvh] flex">
       {/* Left brand panel */}
       <aside
         className="hidden md:flex flex-col justify-between bg-gradient-to-br from-blue-700 to-blue-900 px-10 py-12"

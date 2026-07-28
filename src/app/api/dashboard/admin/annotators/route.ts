@@ -36,7 +36,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
   // ── Per-expert average total score ───────────────────────────────────────────
   // The dashboard should match the export: first sum rubric criteria per completed
   // review, then average those review totals per expert. Averaging raw criterion
-  // rows would turn a 15-point rubric into a misleading 1–5 score.
+  // rows would turn a 15-point rubric into a misleading 1-5 score.
   const scoreRows = (await db
     .select({
       reviewId: reviews.id,
@@ -103,8 +103,8 @@ export const GET = requireAdmin(async (req: NextRequest) => {
     const domains = domainsByUserId.get(stat.expertId) ?? (profile?.domain ? [profile.domain] : []);
     return {
       expertId: stat.expertId,
-      name: profile?.name ?? "—",
-      domain: profile?.domain ?? "—",
+      name: profile?.name ?? "-",
+      domain: profile?.domain ?? "-",
       domains,
       articlesAssigned: stat.articlesAssigned,
       articlesCompleted: Number(stat.articlesCompleted),

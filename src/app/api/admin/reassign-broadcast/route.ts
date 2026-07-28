@@ -1,5 +1,5 @@
 /**
- * Ops endpoint — re-run the broadcast fan-out for every currently-active expert.
+ * Ops endpoint - re-run the broadcast fan-out for every currently-active expert.
  *
  * Use when the matching logic changes (new sub-domain filter, expert toggles a
  * preference outside the standard admin/profile flow, etc.) and we want existing
@@ -7,7 +7,7 @@
  *
  * The helper is idempotent (UNIQUE constraint on assignments collapses dupes),
  * so this can be re-run safely. We process annotators sequentially to avoid hammering
- * the connection pool — each call is a single SQL with CTE.
+ * the connection pool - each call is a single SQL with CTE.
  *
  * Not marked temporary; kept around for ops convenience.
  */

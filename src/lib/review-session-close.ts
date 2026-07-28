@@ -3,7 +3,7 @@
  *
  * Production schema (Postgres) used `LEAST(now(), start_at + interval '90 minutes')`
  * inline in UPDATE; SQLite has neither `now()` nor `interval`. We compute the
- * cap in JS and pass an explicit Date — works on both drivers.
+ * cap in JS and pass an explicit Date - works on both drivers.
  */
 import { db } from "@/db/client";
 import { articleReviewSession } from "@/db/schema";

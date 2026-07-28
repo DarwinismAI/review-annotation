@@ -91,7 +91,7 @@ function normalizeMetricInput(body: MetricBody) {
   };
 }
 
-/** GET /api/rubrics/:id — fetch one metric */
+/** GET /api/rubrics/:id - fetch one metric */
 export const GET = requireAdmin(async (_req: NextRequest, _session, context) => {
   const id = context?.params?.id;
   if (!id) {
@@ -114,7 +114,7 @@ export const GET = requireAdmin(async (_req: NextRequest, _session, context) => 
   });
 });
 
-/** PATCH /api/rubrics/:id — update one metric */
+/** PATCH /api/rubrics/:id - update one metric */
 export const PATCH = requireAdmin(async (req: NextRequest, _session, context) => {
   const id = context?.params?.id;
   if (!id) {
@@ -242,7 +242,7 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
   });
 });
 
-/** DELETE /api/rubrics/:id — delete one metric */
+/** DELETE /api/rubrics/:id - delete one metric */
 export const DELETE = requireAdmin(async (_req: NextRequest, _session, context) => {
   const id = context?.params?.id;
   if (!id) {

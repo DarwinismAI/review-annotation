@@ -175,7 +175,7 @@ export const POST = requireAnnotator(async (req, session) => {
   }
 
   // 4. Auto-assign all matching broadcast articles to this expert (multi-reviewer).
-  //    Failure here must not break signup — log + continue.
+  //    Failure here must not break signup - log + continue.
   let assigned = 0;
   try {
     assigned = await assignBroadcastForExpert(userId);

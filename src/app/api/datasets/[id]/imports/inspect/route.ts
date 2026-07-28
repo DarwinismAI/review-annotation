@@ -15,7 +15,7 @@ export const POST = requireAdmin(async (req: NextRequest, _session, context) => 
   const datasetId = context?.params.id;
   if (!datasetId) return NextResponse.json({ error: "MISSING_DATASET_ID" }, { status: 400 });
 
-  const parsed = requestSchema.safeParse(await req.json());
+  const parsed = requestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "INVALID_REQUEST", details: parsed.error.flatten() }, { status: 400 });
   }

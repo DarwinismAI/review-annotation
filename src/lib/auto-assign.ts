@@ -4,7 +4,7 @@
  *
  * Mental model: in broadcast mode, every active article gets an assignment row
  * for every expert whose `expert_domains` overlaps the batch's `domain`. Experts
- * never self-claim — articles appear in their "Bài của tôi" automatically.
+ * never self-claim - articles appear in their "Bài của tôi" automatically.
  *
  * Sub-domain narrowing (since migration 0010/0011): if an expert has any
  * `expert_sub_domains` rows for the article's parent domain, only articles whose
@@ -27,11 +27,11 @@ import { db as defaultDb } from "@/db/client";
  * SQL fragment: "expert (= ed.user_id) accepts this article's sub_domain_id".
  *
  * True if: expert has no sub-domain row for the batch's parent domain (no narrowing),
- * OR the article has no sub_domain_id (unclassified — accept),
+ * OR the article has no sub_domain_id (unclassified - accept),
  * OR the article's sub_domain_id is in the expert's set.
  *
  * `b.domain` is a literal domain key. We map it to the
- * sub_domain_id prefix via CASE — keeps the lookup table inline so no extra join.
+ * sub_domain_id prefix via CASE - keeps the lookup table inline so no extra join.
  */
 const SUB_DOMAIN_MATCHES = sql`
   (

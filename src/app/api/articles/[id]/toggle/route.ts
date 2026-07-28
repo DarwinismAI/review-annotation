@@ -50,7 +50,7 @@ export const PATCH = requireAdmin(async (req, _session, context) => {
     );
   }
 
-  // Idempotent — but always touch updatedAt so listeners can refresh.
+  // Idempotent - but always touch updatedAt so listeners can refresh.
   const now = Date.now();
   const disabledAt = body.enabled ? null : new Date(now);
 

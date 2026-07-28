@@ -70,7 +70,7 @@ function normalizeMetricInput(body: MetricBody) {
   };
 }
 
-/** GET /api/rubrics — list metrics with their single internal criterion */
+/** GET /api/rubrics - list metrics with their single internal criterion */
 export const GET = requireAdmin(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const domain = searchParams.get("domain");
@@ -96,7 +96,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
   return NextResponse.json({ data: result });
 });
 
-/** POST /api/rubrics — create one metric */
+/** POST /api/rubrics - create one metric */
 export const POST = requireAdmin(async (req: NextRequest, session) => {
   let body: MetricBody;
   try {

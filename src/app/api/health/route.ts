@@ -1,4 +1,4 @@
-// Health-check endpoint — verifies route layer + env wiring.
+// Health-check endpoint - verifies route layer + env wiring.
 // Smoke script (`pnpm smoke:local`) probes this before running other tests.
 
 import { NextResponse } from "next/server";

@@ -33,8 +33,8 @@ export default function DatasetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { preserveView?: boolean }) => {
+    if (!options?.preserveView) setLoading(true);
     setLoadError("");
     try {
       const [detailResponse, rowsResponse] = await Promise.all([
@@ -49,7 +49,7 @@ export default function DatasetDetailPage() {
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Không tải được dataset");
     } finally {
-      setLoading(false);
+      if (!options?.preserveView) setLoading(false);
     }
   }, [datasetId]);
 
@@ -82,7 +82,7 @@ export default function DatasetDetailPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase text-slate-500">Rows</h2>
             <span className="text-sm text-slate-500">{selectedRowIds.length} dòng đã chọn</span>
@@ -95,7 +95,7 @@ export default function DatasetDetailPage() {
           />
         </div>
         <div className="space-y-4">
-          <DatasetAppendImportPanel datasetId={datasetId} onImported={load} />
+          <DatasetAppendImportPanel datasetId={datasetId} onImported={() => load({ preserveView: true })} />
           <div className="rounded-md border border-slate-200 bg-white p-4">
             <h2 className="text-sm font-semibold text-slate-900">Field bắt buộc khi append</h2>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -115,7 +115,7 @@ export default function DatasetDetailPage() {
         selectedRowIds={selectedRowIds}
         open={assignOpen}
         onOpenChange={setAssignOpen}
-        onAssigned={load}
+        onAssigned={() => load({ preserveView: true })}
       />
     </div>
   );

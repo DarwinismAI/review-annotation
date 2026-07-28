@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/** Lightweight toggle switch — no @radix-ui/react-switch dependency. */
+/** Lightweight toggle switch - no @radix-ui/react-switch dependency. */
 interface SwitchProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   onCheckedChange?: (checked: boolean) => void;
 }

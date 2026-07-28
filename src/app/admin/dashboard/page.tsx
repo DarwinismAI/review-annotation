@@ -93,15 +93,15 @@ function toExpertStat(row: ExpertApiRow): ExpertStat {
   const completed = row.articlesCompleted ?? 0;
   return {
     id: row.expertId,
-    name: row.name && row.name !== "—" ? row.name : "Annotator",
+    name: row.name && row.name !== "-" ? row.name : "Annotator",
     assigned,
     completed,
     avgTimeMinutes: row.avgTimeMinutes ?? 0,
     avgScore: Number(row.avgScore ?? 0),
-    domain: row.domain ?? "—",
-    domains: row.domains?.length ? row.domains : row.domain && row.domain !== "—" ? [row.domain] : [],
+    domain: row.domain ?? "-",
+    domains: row.domains?.length ? row.domains : row.domain && row.domain !== "-" ? [row.domain] : [],
     isActive: completed > 0 || assigned > 0,
-    initials: makeInitials(row.name && row.name !== "—" ? row.name : "Annotator"),
+    initials: makeInitials(row.name && row.name !== "-" ? row.name : "Annotator"),
     avatarCls: pickAvatarColor(row.expertId),
   };
 }
@@ -234,7 +234,7 @@ export default function AdminDashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Dashboard — Đợt review Q3/2026
+            Dashboard - Đợt review Q3/2026
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Cập nhật: {formatUpdatedLabel()}

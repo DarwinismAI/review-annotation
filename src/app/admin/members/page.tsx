@@ -66,7 +66,7 @@ export default function AdminMembersPage() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>

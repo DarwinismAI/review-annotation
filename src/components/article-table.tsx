@@ -26,7 +26,7 @@ interface Article {
   status: "unassigned" | "assigned" | "in_review" | "completed";
   assignmentId?: string | null;
   assignedTo: { id: string; name: string } | null;
-  /** AI score 0–100, may be null if not yet computed */
+  /** AI score 0-100, may be null if not yet computed */
   aiScore?: number | null;
   /** Article visible to annotators? Defaults to true. */
   enabled?: boolean;
@@ -98,7 +98,7 @@ function initials(name: string | null | undefined): string {
 }
 
 function ScoreBadge({ score }: { score: number | null | undefined }) {
-  if (score == null) return <span className="text-slate-300 text-xs">—</span>;
+  if (score == null) return <span className="text-slate-300 text-xs">-</span>;
   const cls =
     score < 80
       ? "bg-amber-100 text-amber-600"
@@ -616,7 +616,7 @@ export function ArticleTable({
               {compatibleExperts.map((ex) => (
                 <option key={ex.id} value={ex.id}>
                   {ex.name}
-                  {ex.email ? ` <${ex.email}>` : ""} — {expertSubDomainHint(ex, batchDomain)}
+                  {ex.email ? ` <${ex.email}>` : ""} - {expertSubDomainHint(ex, batchDomain)}
                   {expertMedicalMicroHint(ex, article?.subDomainId) ? ` · ${expertMedicalMicroHint(ex, article?.subDomainId)}` : ""}
                 </option>
               ))}

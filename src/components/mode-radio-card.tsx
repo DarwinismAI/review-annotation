@@ -10,7 +10,7 @@ const MODES: AssignmentMode[] = ["manual", "broadcast"];
 
 /**
  * 2-card radio for batch assignment mode.
- * UI shows "Thủ công" / "Tự động" — internal value remains DB enum (`manual` / `broadcast`).
+ * UI shows "Thủ công" / "Tự động" - internal value remains DB enum (`manual` / `broadcast`).
  */
 export interface ModeRadioCardProps {
   value: AssignmentMode;

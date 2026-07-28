@@ -19,7 +19,7 @@ for (const u of au.users) console.log(`  · ${u.email}  (${u.id})`);
 
 const profiles = await sql`SELECT id, email, role, name FROM profiles ORDER BY created_at`;
 console.log(`\nprofiles: ${profiles.length}`);
-for (const p of profiles) console.log(`  · ${p.email}  role=${p.role}  name=${p.name ?? "—"}  (${p.id})`);
+for (const p of profiles) console.log(`  · ${p.email}  role=${p.role}  name=${p.name ?? "-"}  (${p.id})`);
 
 const expertProfiles = await sql`SELECT user_id, status, domain FROM expert_profiles ORDER BY created_at`;
 console.log(`\nexpert_profiles: ${expertProfiles.length}`);
@@ -35,7 +35,7 @@ const assignmentExperts = await sql`
   GROUP BY expert_id
   ORDER BY n DESC
 `;
-console.log(`\nassignments — distinct expert_id: ${assignmentExperts.length}`);
+console.log(`\nassignments - distinct expert_id: ${assignmentExperts.length}`);
 for (const a of assignmentExperts) console.log(`  · ${a.expert_id}  count=${a.n}`);
 
 const reviewExperts = await sql`
@@ -44,7 +44,7 @@ const reviewExperts = await sql`
   GROUP BY expert_id
   ORDER BY n DESC
 `;
-console.log(`\nreviews — distinct expert_id: ${reviewExperts.length}`);
+console.log(`\nreviews - distinct expert_id: ${reviewExperts.length}`);
 for (const r of reviewExperts) console.log(`  · ${r.expert_id}  count=${r.n}`);
 
 await sql.end();

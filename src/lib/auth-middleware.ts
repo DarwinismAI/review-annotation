@@ -16,7 +16,7 @@ interface GuardedSession {
 /** Resolved params after awaiting the Next.js 15 async params Promise. */
 type ResolvedContext = { params: Record<string, string> };
 
-/** Next.js 15 App Router context shape — params are a Promise. */
+/** Next.js 15 App Router context shape - params are a Promise. */
 type RouteContext = { params: Promise<Record<string, string>> };
 
 type Handler = (
@@ -100,7 +100,7 @@ export function requireAnnotator(handler: Handler) {
   };
 }
 
-/** Check role without wrapping — useful inside composite handlers. */
+/** Check role without wrapping - useful inside composite handlers. */
 export function hasRole(session: GuardedSession, role: AppRole): boolean {
   if (role === "admin") return isAdminRole(session.user.role);
   return session.user.role === role;

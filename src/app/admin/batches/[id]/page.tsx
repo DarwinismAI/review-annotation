@@ -247,7 +247,7 @@ export default function BatchDetailPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center">
         <p className="text-slate-400 text-sm">Đang tải...</p>
       </div>
     );
@@ -255,7 +255,7 @@ export default function BatchDetailPage({
 
   if (error || !batch) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center">
         <p className="text-red-500 text-sm">{error ?? "Không tìm thấy đợt upload"}</p>
       </div>
     );
@@ -404,7 +404,7 @@ export default function BatchDetailPage({
                   expired ? "text-red-600" : daysLeft != null && daysLeft <= 3 ? "text-amber-600" : "text-slate-900"
                 }`}
               >
-                {batch.broadcastExpiresAt ? formatDate(batch.broadcastExpiresAt) : "—"}
+                {batch.broadcastExpiresAt ? formatDate(batch.broadcastExpiresAt) : "-"}
               </p>
               <div className="flex items-center gap-2">
                 {expired ? (
@@ -422,7 +422,7 @@ export default function BatchDetailPage({
               </div>
             </div>
           ) : (
-            <Metric label="Đã nhận" value="—" />
+            <Metric label="Đã nhận" value="-" />
           )}
         </div>
 

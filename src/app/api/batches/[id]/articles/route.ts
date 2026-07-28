@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { articles, assignments, profiles, batches } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 
-/** GET /api/batches/:id/articles — paginated article list with assignment info */
+/** GET /api/batches/:id/articles - paginated article list with assignment info */
 export const GET = requireAdmin(async (req, _session, context) => {
   const id = context?.params?.id;
   if (!id) {

@@ -191,7 +191,7 @@ function VerdictCell({
 }) {
   return (
     <div className="flex flex-col items-center gap-1 py-4">
-      <p className={`text-2xl font-bold ${hasRatings ? colorCls : "text-slate-900"}`}>{hasRatings ? pct(ratio) : "—"}</p>
+      <p className={`text-2xl font-bold ${hasRatings ? colorCls : "text-slate-900"}`}>{hasRatings ? pct(ratio) : "-"}</p>
       <span className={`px-2 py-0.5 rounded text-xs ${badgeCls}`}>{label}</span>
       {hasRatings && <p className="text-xs text-slate-400">{count} claim</p>}
     </div>

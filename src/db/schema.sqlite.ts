@@ -1,5 +1,5 @@
 /**
- * SQLite schema — local development mirror of the Postgres schema.
+ * SQLite schema - local development mirror of the Postgres schema.
  *
  * All tables use sqliteTable / text / integer / real for SQLite compat.
  * UUIDs stored as text, timestamps as ISO strings.

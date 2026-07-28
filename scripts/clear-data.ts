@@ -104,7 +104,7 @@ async function main() {
   const n = await wipeStorageBucket(supa, "uploads");
   console.log(`  · removed ${n} storage objects`);
 
-  console.log("Done — database and storage cleared.");
+  console.log("Done - database and storage cleared.");
 }
 
 main().catch((err) => {

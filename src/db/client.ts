@@ -1,5 +1,5 @@
 /**
- * Drizzle db singleton — dual-driver with normalized raw-SQL API.
+ * Drizzle db singleton - dual-driver with normalized raw-SQL API.
  * - LOCAL_DB_PATH set → SQLite (@libsql/client) for local dev
  * - DATABASE_URL set    → PostgreSQL (postgres-js) for production
  *

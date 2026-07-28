@@ -1,30 +1,30 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
-/* Design tokens from tokens.json — review-annotation palette */
+/* Design tokens from tokens.json - review-annotation palette */
 @layer base {
   :root {
     /* shadcn/ui semantic variables mapped to design tokens */
-    --background: 0 0% 100%;              /* #FFFFFF */
+    --background: 210 40% 98%;            /* Slate-50 */
     --foreground: 222 47% 11%;            /* #0F172A Slate-900 */
-    --card: 0 0% 100%;
+    --card: 48 20% 99%;
     --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
+    --popover: 48 20% 99%;
     --popover-foreground: 222 47% 11%;
     --primary: 221 83% 53%;              /* #2563EB Blue-600 */
-    --primary-foreground: 0 0% 100%;     /* #FFFFFF */
+    --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;            /* #F1F5F9 Slate-100 */
     --secondary-foreground: 222 47% 11%;
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;     /* #64748B Slate-500 */
     --accent: 199 89% 48%;               /* #0EA5E9 Sky-500 */
-    --accent-foreground: 0 0% 100%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 72% 51%;            /* #DC2626 Red-600 */
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 210 40% 98%;
     --border: 214 32% 91%;               /* #E2E8F0 Slate-200 */
     --input: 214 32% 91%;
     --ring: 221 83% 53%;
-    --radius: 0.375rem;                  /* 6px — radius-md */
+    --radius: 0.375rem;                  /* 6px - radius-md */
 
     /* Custom tokens for direct use */
     --color-surface: 210 40% 98%;        /* #F8FAFC Slate-50 */
@@ -61,6 +61,12 @@
     --border: 222 47% 18%;
     --input: 222 47% 18%;
     --ring: 221 83% 53%;
+  }
+}
+
+@layer utilities {
+  .bg-white {
+    background-color: #fdfdfc;
   }
 }
 
@@ -157,7 +163,7 @@
   background: #f8fafc;
 }
 
-/* ─── Inline comment anchors (Phase 3 — selection-based comments) ─────── */
+/* Inline comment anchors (Phase 3 - selection-based comments) */
 mark.comment-anchor {
   background: #fef3c7;
   color: inherit;

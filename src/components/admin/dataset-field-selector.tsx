@@ -28,7 +28,7 @@ export function DatasetFieldSelector({
   onDetailFieldsChange,
 }: DatasetFieldSelectorProps) {
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
       <div className="grid grid-cols-[1fr_120px_160px_170px] gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
         <div>Field</div>
         <div>Type</div>

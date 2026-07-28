@@ -21,7 +21,7 @@ interface InspectPayload {
 
 export default function NewDatasetPage() {
   const router = useRouter();
-  const [name, setName] = useState("Humanity — An toàn - Tuân thủ");
+  const [name, setName] = useState("Humanity - An toàn - Tuân thủ");
   const [filename, setFilename] = useState("");
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [inspect, setInspect] = useState<InspectPayload | null>(null);
@@ -110,8 +110,18 @@ export default function NewDatasetPage() {
 
       <div className="rounded-md border border-slate-200 bg-white p-4">
         <div className="grid gap-4 md:grid-cols-[1fr_260px]">
-          <Input value={name} onChange={(event) => setName(event.target.value)} aria-label="Dataset name" />
-          <Input type="file" accept=".json,application/json" onChange={(event) => handleFile(event.target.files?.[0] ?? null)} />
+          <div className="space-y-1.5">
+            <label htmlFor="dataset-name" className="block text-sm font-medium text-slate-700">
+              Tên dataset
+            </label>
+            <Input id="dataset-name" value={name} onChange={(event) => setName(event.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="dataset-file" className="block text-sm font-medium text-slate-700">
+              File JSON
+            </label>
+            <Input id="dataset-file" type="file" accept=".json,application/json" onChange={(event) => handleFile(event.target.files?.[0] ?? null)} />
+          </div>
         </div>
         {inspect && (
           <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">

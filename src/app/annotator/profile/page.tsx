@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { DomainPicker } from "@/components/domain-picker";
 import {
   DOMAIN_LABELS,
@@ -23,9 +22,9 @@ interface ProfileData {
 type AvailableMap = Record<DomainKey, SubDomainKey[]>;
 
 function formatDate(raw: string | number | null): string {
-  if (!raw) return "—";
+  if (!raw) return "-";
   const d = new Date(raw);
-  if (isNaN(d.getTime())) return "—";
+  if (isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
@@ -168,7 +167,7 @@ export default function ExpertProfilePage() {
             <div>
               <dt className="text-slate-500 text-xs uppercase">Ngày tạo tài khoản</dt>
               <dd className="text-slate-900 font-medium mt-1">
-                {profile ? formatDate(profile.createdAt) : "—"}
+                {profile ? formatDate(profile.createdAt) : "-"}
               </dd>
             </div>
           </dl>
@@ -231,8 +230,7 @@ export default function ExpertProfilePage() {
             Bảo mật
           </h2>
           <p className="text-sm text-slate-600">
-            Tài khoản dùng đăng nhập không mật khẩu — mỗi lần đăng nhập, hệ thống gửi mã 6 chữ số tới email.
-            Phiên hiệu lực 30 ngày kể từ lần truy cập gần nhất.
+            Tài khoản dùng email và mật khẩu do admin cấp. Phiên hiệu lực 30 ngày kể từ lần truy cập gần nhất.
           </p>
         </section>
 

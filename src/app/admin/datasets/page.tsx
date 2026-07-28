@@ -45,7 +45,7 @@ export default function AdminDatasetsPage() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <Table>
           <TableHeader>
             <TableRow>
@@ -79,7 +79,7 @@ export default function AdminDatasetsPage() {
                 <TableCell>{labelForDomain(dataset.domain)}</TableCell>
                 <TableCell>{dataset.rowCount}</TableCell>
                 <TableCell>{dataset.metricCount}</TableCell>
-                <TableCell className="max-w-[240px] truncate">{dataset.latestImport ?? "—"}</TableCell>
+                <TableCell className="max-w-[240px] truncate">{dataset.latestImport ?? "-"}</TableCell>
                 <TableCell>
                   <Badge variant="secondary">{dataset.status}</Badge>
                 </TableCell>

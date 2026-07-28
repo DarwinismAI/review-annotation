@@ -8,7 +8,7 @@ interface VerdictDef {
   label: string;
 }
 
-/** Ordered worst→best (Sai | Không chắc | Đúng) — matching prototype claim-rating.js */
+/** Ordered worst→best (Sai | Không chắc | Đúng) - matching prototype claim-rating.js */
 const VERDICTS: VerdictDef[] = [
   { id: "incorrect", icon: "✗", label: "Sai" },
   { id: "unsure", icon: "?", label: "Không chắc" },

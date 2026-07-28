@@ -18,7 +18,7 @@ import { domainForSubDomain, subDomainForMedicalMicroDomain, type DomainKey } fr
  * POST /api/articles/:id/claim
  *
  * Expert self-claims a broadcast-mode article. Race-safe via UNIQUE index on
- * `assignments.article_id` — concurrent claims collapse to one winner; losers get 409.
+ * `assignments.article_id` - concurrent claims collapse to one winner; losers get 409.
  *
  * Validation order:
  * 1. Article exists + enabled
@@ -130,7 +130,7 @@ export const POST = requireAnnotator(async (_req, session, context) => {
 
   // Sub-domain narrowing: if the expert opted into specific sub-domains for this batch's
   // parent domain, the article must match. Article with NULL sub_domain_id passes through
-  // (it's not classified — fall back to the parent-domain match above).
+  // (it's not classified - fall back to the parent-domain match above).
   if (article.subDomainId) {
     const expertSubRows = await db
       .select({ subDomainId: expertSubDomains.subDomainId })

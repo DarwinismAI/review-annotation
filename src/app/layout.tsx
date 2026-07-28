@@ -13,7 +13,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Review Annotation — Hệ thống chấm điểm nội bộ",
+  title: "Review Annotation - Hệ thống chấm điểm nội bộ",
   description: "Công cụ annotation và chấm điểm bài viết nội bộ",
 };
 

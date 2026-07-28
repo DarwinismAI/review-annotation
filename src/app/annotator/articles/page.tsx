@@ -43,10 +43,10 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
 
 /**
  * Format total review seconds into a human-readable Vietnamese string.
- * null / 0 → "—"; < 60s → "<1 phút"; < 3600s → "Xm"; ≥ 3600s → "Xh Ym"
+ * null / 0 → "-"; < 60s → "<1 phút"; < 3600s → "Xm"; ≥ 3600s → "Xh Ym"
  */
 function formatReviewTime(seconds: number | null): string {
-  if (seconds === null || seconds <= 0) return "—";
+  if (seconds === null || seconds <= 0) return "-";
   if (seconds < 60) return "<1 phút";
   const totalMinutes = Math.floor(seconds / 60);
   if (totalMinutes < 60) return `${totalMinutes}m`;
@@ -181,7 +181,7 @@ function Pagination({
   return (
     <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
       <p>
-        Hiện <span className="font-medium text-slate-700">{fromIdx}</span>–
+        Hiện <span className="font-medium text-slate-700">{fromIdx}</span>-
         <span className="font-medium text-slate-700">{toIdx}</span> / {total} bài
       </p>
       <div className="flex items-center gap-2">
@@ -256,7 +256,7 @@ function MineList({ items }: { items: MineItem[] }) {
                       {a.title}
                     </p>
                     {!a.enabled ? (
-                      <p className="text-xs text-amber-600 mt-1">Bài đã bị tắt — còn 24h để hoàn thành</p>
+                      <p className="text-xs text-amber-600 mt-1">Bài đã bị tắt - còn 24h để hoàn thành</p>
                     ) : null}
                   </Link>
                 </td>

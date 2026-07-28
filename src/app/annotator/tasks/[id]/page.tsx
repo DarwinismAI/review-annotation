@@ -189,15 +189,19 @@ export default function ExpertTaskDetailPage() {
                 ))}
               </div>
             </div>
+            <label htmlFor={`note-${metric.id}`} className="mt-3 block text-sm font-medium text-slate-700">
+              Ghi chú
+            </label>
             <Textarea
+              id={`note-${metric.id}`}
               value={notes[metric.id] ?? ""}
               disabled={task.status === "completed"}
               onChange={(event) => {
                 setNotes((current) => ({ ...current, [metric.id]: event.target.value }));
                 markDirty();
               }}
-              className="mt-3"
-              placeholder="Ghi chú"
+              className="mt-1.5"
+              placeholder="Nhập ghi chú"
             />
           </div>
         ))}

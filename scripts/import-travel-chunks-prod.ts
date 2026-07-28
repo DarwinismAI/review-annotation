@@ -9,7 +9,7 @@
  *     [--name-prefix "Du lịch"] \
  *     [--base-url https://annotator-review-app.vercel.app]
  *
- * Idempotent by batch name — skips chunks whose batch name already exists.
+ * Idempotent by batch name - skips chunks whose batch name already exists.
  */
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
@@ -189,7 +189,7 @@ async function main() {
       chunkZip.file(path, data);
     }
     const bytes = await chunkZip.generateAsync({ type: "uint8array" });
-    // Storage keys must be ASCII — strip diacritics from name prefix
+    // Storage keys must be ASCII - strip diacritics from name prefix
     const asciiPrefix = args.namePrefix
       .normalize("NFD")
       .replace(/[̀-ͯ]/g, "")

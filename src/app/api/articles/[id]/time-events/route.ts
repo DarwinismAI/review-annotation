@@ -77,7 +77,7 @@ export const POST = requireAnnotator(async (req, session, context) => {
     return NextResponse.json({ data: { inserted: 0 } });
   }
 
-  // Filter out events with invalid type — silently skip rather than reject batch
+  // Filter out events with invalid type - silently skip rather than reject batch
   const validEvents = events.filter((e) => VALID_EVENT_TYPES.has(e.type));
 
   const now = new Date();
