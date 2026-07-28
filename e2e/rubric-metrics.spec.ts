@@ -1,12 +1,37 @@
 import { expect, test } from "@playwright/test";
+import { createClient } from "@libsql/client";
 
 const ADMIN_COOKIE = { Cookie: "dev_role=admin" };
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+const LOCAL_DB_PATH = process.env.LOCAL_DB_PATH ?? "file:./local.db";
 const SCALE = [
   { score: 1, label: "Failed", description: "fail" },
   { score: 2, label: "Pass", description: "pass" },
 ];
 
+function isLocalBaseUrl(baseUrl: string) {
+  try {
+    return ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function createLocalDbClient() {
+  if (!LOCAL_DB_PATH.startsWith("file:")) {
+    throw new Error("Rubric metric regression tests require a local SQLite database");
+  }
+
+  return createClient({ url: LOCAL_DB_PATH });
+}
+
+function uniqueId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 test.describe("Rubric metrics API", () => {
+  test.skip(!isLocalBaseUrl(BASE_URL), "Rubric metric tests use dev_role and only run locally");
+
   test("invalid metric patch does not persist partial rubric changes", async ({ request }) => {
     const create = await request.post("/api/rubrics", {
       headers: ADMIN_COOKIE,
@@ -77,6 +102,140 @@ test.describe("Rubric metrics API", () => {
       });
     } finally {
       await request.delete(`/api/rubrics/${created.id}`, { headers: ADMIN_COOKIE });
+    }
+  });
+
+  test("deleting a metric referenced by review scores returns METRIC_IN_USE", async ({ request }) => {
+    const create = await request.post("/api/rubrics", {
+      headers: ADMIN_COOKIE,
+      data: {
+        name: `Referenced metric ${Date.now()}`,
+        domain: "safety_compliance",
+        description: "used by a completed review",
+        required: true,
+        scale: SCALE,
+      },
+    });
+    expect(create.ok()).toBeTruthy();
+    const created = (await create.json()).data;
+    const scoreId = uniqueId("rubric-delete-score");
+    const db = createLocalDbClient();
+    const now = new Date().toISOString();
+
+    await db.execute({
+      sql: `INSERT INTO review_scores
+              (id, review_id, criterion_id, score, reason, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [scoreId, uniqueId("review"), created.criterionId, 2, "Regression fixture", now, now],
+    });
+
+    try {
+      const remove = await request.delete(`/api/rubrics/${created.id}`, {
+        headers: ADMIN_COOKIE,
+      });
+      expect(remove.status()).toBe(409);
+      expect(await remove.json()).toMatchObject({
+        error: {
+          code: "METRIC_IN_USE",
+        },
+      });
+
+      const fetched = await request.get(`/api/rubrics/${created.id}`, {
+        headers: ADMIN_COOKIE,
+      });
+      expect(fetched.ok()).toBeTruthy();
+      expect((await fetched.json()).data.criterionId).toBe(created.criterionId);
+    } finally {
+      await db.execute({
+        sql: "DELETE FROM review_scores WHERE id = ?",
+        args: [scoreId],
+      });
+      await db.execute({
+        sql: "DELETE FROM rubric_criteria WHERE rubric_id = ?",
+        args: [created.id],
+      });
+      await db.execute({
+        sql: "DELETE FROM rubrics WHERE id = ?",
+        args: [created.id],
+      });
+      db.close();
+    }
+  });
+
+  test("listing metrics does not mutate or split legacy rubric rows", async ({ request }) => {
+    const fixturePrefix = uniqueId("legacy-rubric");
+    const rubricId = `${fixturePrefix}-rubric`;
+    const criterionIds = [`${fixturePrefix}-criterion-1`, `${fixturePrefix}-criterion-2`];
+    const db = createLocalDbClient();
+    const now = Date.now();
+
+    await db.execute({
+      sql: `INSERT INTO rubrics
+              (id, name, domain, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, NULL, ?, ?)`,
+      args: [rubricId, `${fixturePrefix} source`, "tourism", now, now],
+    });
+    for (const [index, criterionId] of criterionIds.entries()) {
+      await db.execute({
+        sql: `INSERT INTO rubric_criteria
+                (id, rubric_id, name, description, scale, required, sort_order, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          criterionId,
+          rubricId,
+          `${fixturePrefix} criterion ${index + 1}`,
+          `Legacy criterion ${index + 1}`,
+          JSON.stringify(SCALE),
+          1,
+          index,
+          now + index,
+          now + index,
+        ],
+      });
+    }
+
+    try {
+      const beforeRubrics = await db.execute({
+        sql: "SELECT * FROM rubrics WHERE id = ?",
+        args: [rubricId],
+      });
+      const beforeCriteria = await db.execute({
+        sql: "SELECT * FROM rubric_criteria WHERE id IN (?, ?) ORDER BY id",
+        args: criterionIds,
+      });
+
+      const response = await request.get("/api/rubrics?domain=tourism", {
+        headers: ADMIN_COOKIE,
+      });
+      expect(response.ok()).toBeTruthy();
+
+      const afterRubrics = await db.execute({
+        sql: "SELECT * FROM rubrics WHERE id = ?",
+        args: [rubricId],
+      });
+      const afterCriteria = await db.execute({
+        sql: "SELECT * FROM rubric_criteria WHERE id IN (?, ?) ORDER BY id",
+        args: criterionIds,
+      });
+      expect(afterRubrics.rows.map((row) => ({ ...row }))).toEqual(
+        beforeRubrics.rows.map((row) => ({ ...row })),
+      );
+      expect(afterCriteria.rows.map((row) => ({ ...row }))).toEqual(
+        beforeCriteria.rows.map((row) => ({ ...row })),
+      );
+
+      const metrics = (await response.json()).data;
+      expect(metrics.filter((metric: { id: string }) => metric.id === rubricId)).toHaveLength(1);
+    } finally {
+      await db.execute({
+        sql: "DELETE FROM rubric_criteria WHERE id IN (?, ?)",
+        args: criterionIds,
+      });
+      await db.execute({
+        sql: "DELETE FROM rubrics WHERE name LIKE ?",
+        args: [`${fixturePrefix}%`],
+      });
+      db.close();
     }
   });
 });
