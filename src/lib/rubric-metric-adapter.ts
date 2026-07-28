@@ -1,4 +1,7 @@
-// @ts-nocheck
+import { rubricCriteria, rubrics } from "@/db/schema";
+
+type Rubric = typeof rubrics.$inferSelect;
+type RubricCriterion = typeof rubricCriteria.$inferSelect;
 
 export interface ScaleItem {
   score: number;
@@ -14,7 +17,7 @@ export function parseScale(raw: string): ScaleItem[] {
   }
 }
 
-export function toMetricResponse(rubric: any, criterion: any | null) {
+export function toMetricResponse(rubric: Rubric, criterion: RubricCriterion | null) {
   return {
     ...rubric,
     criterionId: criterion?.id ?? null,

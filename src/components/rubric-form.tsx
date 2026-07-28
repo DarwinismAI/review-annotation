@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DOMAIN_KEYS, labelForDomain } from "@/lib/labels";
 
@@ -231,9 +232,9 @@ export default function RubricForm({ initialData }: RubricFormProps) {
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="flex items-center justify-end gap-3 pb-12">
-        <a href="/admin/rubrics" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition-colors hover:border-blue-300">
+        <Link href="/admin/rubrics" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition-colors hover:border-blue-300">
           Hủy
-        </a>
+        </Link>
         <button
           type="button"
           onClick={handleSave}

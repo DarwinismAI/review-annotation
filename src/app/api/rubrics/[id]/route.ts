@@ -1,7 +1,9 @@
-// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, type ExtractTablesWithRelations } from "drizzle-orm";
+import type { PgTransaction } from "drizzle-orm/pg-core";
+import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
+import * as schema from "@/db/schema";
 import { db } from "@/db/client";
 import { rubricCriteria, rubrics } from "@/db/schema";
 import { reviewScores } from "@/db/reviews";
@@ -26,6 +28,13 @@ interface MetricBody extends Partial<MetricInput> {
   domain?: string;
   criteria?: MetricInput[];
 }
+
+type RubricTransaction = PgTransaction<
+  PostgresJsQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+type RubricCriterionId = Pick<typeof rubricCriteria.$inferSelect, "id">;
 
 function normalizeMetricInput(body: MetricBody) {
   const metric = Array.isArray(body.scale)
@@ -118,7 +127,7 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
   }
 
   const now = Date.now();
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: RubricTransaction) => {
     const [existingCriterion] = await tx
       .select()
       .from(rubricCriteria)
@@ -208,7 +217,7 @@ export const DELETE = requireAdmin(async (_req: NextRequest, _session, context) 
     const [referencedScore] = await db
       .select({ id: reviewScores.id })
       .from(reviewScores)
-      .where(inArray(reviewScores.criterionId, criteria.map((criterion) => criterion.id)))
+      .where(inArray(reviewScores.criterionId, criteria.map((criterion: RubricCriterionId) => criterion.id)))
       .limit(1);
 
     if (referencedScore) {
@@ -224,7 +233,7 @@ export const DELETE = requireAdmin(async (_req: NextRequest, _session, context) 
     }
   }
 
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: RubricTransaction) => {
     await tx.delete(rubricCriteria).where(eq(rubricCriteria.rubricId, id));
     await tx.delete(rubrics).where(eq(rubrics.id, id));
   });
