@@ -108,8 +108,6 @@ async function sqliteImpl(since: string) {
 // ─── PostgreSQL: server-side percentile_cont ───────────────────────
 
 async function postgresImpl(since: string) {
-  const sinceDate = new Date(since);
-
   const batchMetrics = await db.execute(sql`
     WITH article_durations AS (
       SELECT
@@ -119,7 +117,7 @@ async function postgresImpl(since: string) {
       FROM article_review_session ars
       JOIN assignments asn ON asn.id = ars.assignment_id
       JOIN articles a ON a.id = asn.article_id
-      WHERE ars.end_at IS NOT NULL AND ars.created_at >= ${sinceDate}
+      WHERE ars.end_at IS NOT NULL AND ars.created_at >= ${since}
       GROUP BY a.batch_id, ars.assignment_id
     )
     SELECT
@@ -151,7 +149,7 @@ async function postgresImpl(since: string) {
     FROM article_review_session ars
     JOIN assignments asn ON asn.id = ars.assignment_id
     JOIN articles art ON art.id = asn.article_id
-    WHERE ars.end_at IS NOT NULL AND ars.created_at >= ${sinceDate}
+    WHERE ars.end_at IS NOT NULL AND ars.created_at >= ${since}
     GROUP BY art.id, art.title
     ORDER BY minutes DESC
     LIMIT 5
