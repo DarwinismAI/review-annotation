@@ -4,7 +4,7 @@ import { requireExpert } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import { assignments, articles, batches, rubricCriteria, rubrics } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
-import { eq, and, inArray, asc } from "drizzle-orm";
+import { eq, and, inArray, asc, lte } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
 /**
@@ -51,7 +51,7 @@ export const POST = requireExpert(async (req, session, context) => {
 
   // Verify assignment
   const [assignment] = await db
-    .select({ id: assignments.id })
+    .select({ id: assignments.id, createdAt: assignments.createdAt })
     .from(assignments)
     .where(
       and(
@@ -83,7 +83,12 @@ export const POST = requireExpert(async (req, session, context) => {
         const domainRubrics = await db
           .select({ id: rubrics.id })
           .from(rubrics)
-          .where(eq(rubrics.domain, batch.domain))
+          .where(
+            and(
+              eq(rubrics.domain, batch.domain),
+              lte(rubrics.createdAt, assignment.createdAt)
+            )
+          )
           .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
         if (domainRubrics.length > 0) {

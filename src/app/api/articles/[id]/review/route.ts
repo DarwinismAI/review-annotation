@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
 import { compensationSurveyResponses } from "@/db/compensation-survey";
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { eq, and, asc, inArray, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { getSignedUrl } from "@/lib/supabase-storage";
@@ -132,7 +132,12 @@ export const GET = requireExpert(async (req, session, context) => {
     const domainRubrics = await db
       .select()
       .from(rubrics)
-      .where(eq(rubrics.domain, batchFull.domain))
+      .where(
+        and(
+          eq(rubrics.domain, batchFull.domain),
+          lte(rubrics.createdAt, assignment.createdAt)
+        )
+      )
       .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
     if (domainRubrics.length > 0) {
@@ -363,7 +368,12 @@ export const POST = requireExpert(async (req, session, context) => {
       const domainRubrics = await db
         .select({ id: rubrics.id })
         .from(rubrics)
-        .where(eq(rubrics.domain, batch.domain));
+        .where(
+          and(
+            eq(rubrics.domain, batch.domain),
+            lte(rubrics.createdAt, assignment.createdAt)
+          )
+        );
 
       if (domainRubrics.length > 0) {
         const allCriteria = await db
