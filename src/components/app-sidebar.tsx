@@ -9,20 +9,22 @@ import {
   ClipboardList,
   FileText,
   UserCircle,
+  TableProperties,
 } from "lucide-react";
 
 // ─── Nav item definitions ──────────────────────────────────────────
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/admin/datasets", label: "Datasets", icon: TableProperties },
   { href: "/admin/batches", label: "Đợt upload", icon: Package },
-  { href: "/admin/experts", label: "Chuyên gia", icon: Users },
+  { href: "/admin/experts", label: "Annotator", icon: Users },
   { href: "/admin/rubrics", label: "Rubric", icon: ClipboardList },
 ];
 
 const EXPERT_NAV = [
   { href: "/expert/dashboard", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/expert/articles", label: "Bài viết của tôi", icon: FileText },
+  { href: "/expert/tasks", label: "Task của tôi", icon: FileText },
   { href: "/expert/profile", label: "Hồ sơ", icon: UserCircle },
 ];
 

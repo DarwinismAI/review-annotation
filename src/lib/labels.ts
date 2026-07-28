@@ -11,11 +11,16 @@ export const ASSIGNMENT_MODE_LABELS = {
   broadcast: "Tự động",
 } as const;
 
+export const ROLE_LABELS = {
+  admin: "Quản trị viên",
+  expert: "Người gán nhãn",
+} as const;
+
 export type AssignmentMode = keyof typeof ASSIGNMENT_MODE_LABELS;
 
 export const ASSIGNMENT_MODE_DESCRIPTIONS: Record<AssignmentMode, string> = {
-  manual: "Bạn gán từng bài cho chuyên gia cụ thể.",
-  broadcast: "Mọi chuyên gia thuộc lĩnh vực có thể tự nhận bài.",
+  manual: "Bạn gán từng bài cho annotator cụ thể.",
+  broadcast: "Mọi annotator thuộc lĩnh vực có thể tự nhận bài.",
 };
 
 export const DOMAIN_LABELS = {

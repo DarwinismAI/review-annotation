@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { getSessionUser, signOut, type ClientSessionUser } from "@/lib/auth-client";
+import { ROLE_LABELS } from "@/lib/labels";
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ function avatarBg(role: string): string {
 }
 
 function roleLabel(role: string): string {
-  return role === "admin" ? "Quản trị viên" : "Chuyên gia";
+  return (ROLE_LABELS as Record<string, string>)[role] ?? role;
 }
 
 // ─── Component ─────────────────────────────────────────────────────
