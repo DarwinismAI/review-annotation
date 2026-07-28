@@ -1,10 +1,13 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth-middleware";
-import { db } from "@/db/client";
-import { rubrics, rubricCriteria } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
+import { eq, inArray } from "drizzle-orm";
+import { db } from "@/db/client";
+import { rubricCriteria, rubrics } from "@/db/schema";
+import { reviewScores } from "@/db/reviews";
+import { requireAdmin } from "@/lib/auth-middleware";
+import { isDomainKey } from "@/lib/labels";
+import { toMetricResponse } from "@/lib/rubric-metric-adapter";
 
 interface ScaleItem {
   score: number;
@@ -12,107 +15,219 @@ interface ScaleItem {
   description: string;
 }
 
-interface CriterionInput {
+interface MetricInput {
   name: string;
   description?: string;
   scale: ScaleItem[];
   required?: boolean;
 }
 
-/** PATCH /api/rubrics/:id — update rubric name and/or criteria */
-export const PATCH = requireAdmin(async (req, _session, context) => {
+interface MetricBody extends Partial<MetricInput> {
+  domain?: string;
+  criteria?: MetricInput[];
+}
+
+function normalizeMetricInput(body: MetricBody) {
+  const metric = Array.isArray(body.scale)
+    ? body
+    : Array.isArray(body.criteria) && body.criteria.length === 1
+      ? body.criteria[0]
+      : null;
+
+  if (!metric) {
+    return { ok: false as const, message: "Mỗi metric chỉ có một cấu hình thông số" };
+  }
+  if (!metric.name?.trim() || !Array.isArray(metric.scale) || metric.scale.length < 2) {
+    return { ok: false as const, message: "Metric cần tên và ít nhất 2 mức chấm" };
+  }
+
+  for (const item of metric.scale) {
+    if (!item.label?.trim() || !item.description?.trim()) {
+      return { ok: false as const, message: `Metric "${metric.name}" thiếu label hoặc mô tả cho mức ${item.score}` };
+    }
+  }
+
+  return {
+    ok: true as const,
+    metric: {
+      ...metric,
+      name: metric.name.trim(),
+      description: metric.description?.trim() ?? "",
+      scale: metric.scale.map((item, index) => ({
+        score: index + 1,
+        label: item.label.trim(),
+        description: item.description.trim(),
+      })),
+    },
+  };
+}
+
+/** GET /api/rubrics/:id — fetch one metric */
+export const GET = requireAdmin(async (_req: NextRequest, _session, context) => {
   const id = context?.params?.id;
   if (!id) {
-    return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "Thiếu ID rubric" } },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: { code: "BAD_REQUEST", message: "Thiếu ID metric" } }, { status: 400 });
   }
 
-  let body: { name?: string; criteria?: CriterionInput[] };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "Dữ liệu không hợp lệ" } },
-      { status: 400 }
-    );
-  }
-
-  const [rubric] = await db
-    .select()
-    .from(rubrics)
-    .where(eq(rubrics.id, id));
-
+  const [rubric] = await db.select().from(rubrics).where(eq(rubrics.id, id));
   if (!rubric) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Không tìm thấy rubric" } },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy metric" } }, { status: 404 });
   }
 
-  const now = Date.now();
-  const updates: Partial<typeof rubrics.$inferInsert> = { updatedAt: now };
-  if (body.name) updates.name = body.name;
-
-  await db.update(rubrics).set(updates).where(eq(rubrics.id, id));
-
-  // Replace criteria if provided
-  if (Array.isArray(body.criteria)) {
-    // Validate scale completeness
-    for (const criterion of body.criteria) {
-      for (const item of criterion.scale ?? []) {
-        if (!item.description?.trim()) {
-          return NextResponse.json(
-            {
-              error: {
-                code: "INCOMPLETE_SCALE",
-                message: `Tiêu chí "${criterion.name}" thiếu mô tả cho mức điểm ${item.score}`,
-              },
-            },
-            { status: 400 }
-          );
-        }
-      }
-    }
-
-    // Delete existing criteria and re-insert (simple replace strategy)
-    await db.delete(rubricCriteria).where(eq(rubricCriteria.rubricId, id));
-
-    if (body.criteria.length > 0) {
-      await db.insert(rubricCriteria).values(
-        body.criteria.map((c, idx) => ({
-          id: createId(),
-          rubricId: id,
-          name: c.name,
-          description: c.description ?? null,
-          scale: JSON.stringify(c.scale),
-          required: c.required !== false ? 1 : 0,
-          sortOrder: idx,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      );
-    }
-  }
-
-  const criteria = await db
+  const [criterion] = await db
     .select()
     .from(rubricCriteria)
     .where(eq(rubricCriteria.rubricId, id))
     .orderBy(rubricCriteria.sortOrder);
 
   return NextResponse.json({
-    data: {
-      id,
-      name: body.name ?? rubric.name,
-      domain: rubric.domain,
-      updatedAt: now,
-      criteria: criteria.map((c) => ({
-        ...c,
-        scale: JSON.parse(c.scale) as ScaleItem[],
-        required: Boolean(c.required),
-      })),
-    },
+    data: toMetricResponse(rubric, criterion ?? null),
   });
+});
+
+/** PATCH /api/rubrics/:id — update one metric */
+export const PATCH = requireAdmin(async (req: NextRequest, _session, context) => {
+  const id = context?.params?.id;
+  if (!id) {
+    return NextResponse.json({ error: { code: "BAD_REQUEST", message: "Thiếu ID metric" } }, { status: 400 });
+  }
+
+  let body: MetricBody;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: { code: "BAD_REQUEST", message: "Dữ liệu không hợp lệ" } }, { status: 400 });
+  }
+
+  const [rubric] = await db.select().from(rubrics).where(eq(rubrics.id, id));
+  if (!rubric) {
+    return NextResponse.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy metric" } }, { status: 404 });
+  }
+
+  if (body.domain && !isDomainKey(body.domain)) {
+    return NextResponse.json({ error: { code: "INVALID_DOMAIN", message: "Lĩnh vực không hợp lệ" } }, { status: 400 });
+  }
+
+  let normalized = null;
+
+  if (Array.isArray(body.scale) || Array.isArray(body.criteria)) {
+    normalized = normalizeMetricInput(body);
+    if (!normalized.ok) {
+      return NextResponse.json({ error: { code: "BAD_REQUEST", message: normalized.message } }, { status: 400 });
+    }
+  }
+
+  const now = Date.now();
+  await db.transaction(async (tx: any) => {
+    const [existingCriterion] = await tx
+      .select()
+      .from(rubricCriteria)
+      .where(eq(rubricCriteria.rubricId, id))
+      .orderBy(rubricCriteria.sortOrder);
+    const metricName = normalized?.ok
+      ? normalized.metric.name
+      : body.name?.trim() || rubric.name;
+
+    await tx
+      .update(rubrics)
+      .set({
+        name: metricName,
+        domain: body.domain ?? rubric.domain,
+        updatedAt: now,
+      })
+      .where(eq(rubrics.id, id));
+
+    if (normalized?.ok) {
+      const criterionValues = {
+        name: metricName,
+        description: normalized.metric.description || null,
+        scale: JSON.stringify(normalized.metric.scale),
+        required: normalized.metric.required !== false ? 1 : 0,
+        sortOrder: 0,
+        updatedAt: now,
+      };
+
+      if (existingCriterion) {
+        await tx
+          .update(rubricCriteria)
+          .set(criterionValues)
+          .where(eq(rubricCriteria.id, existingCriterion.id));
+      } else {
+        await tx.insert(rubricCriteria).values({
+          id: createId(),
+          rubricId: id,
+          ...criterionValues,
+          createdAt: now,
+        });
+      }
+    } else if (body.name?.trim() && existingCriterion) {
+      await tx
+        .update(rubricCriteria)
+        .set({ name: metricName, updatedAt: now })
+        .where(eq(rubricCriteria.id, existingCriterion.id));
+    }
+  });
+
+  const [criterion] = await db
+    .select()
+    .from(rubricCriteria)
+    .where(eq(rubricCriteria.rubricId, id))
+    .orderBy(rubricCriteria.sortOrder);
+
+  return NextResponse.json({
+    data: toMetricResponse(
+      {
+        ...rubric,
+        name: normalized?.ok ? normalized.metric.name : body.name?.trim() || rubric.name,
+        domain: body.domain ?? rubric.domain,
+        updatedAt: now,
+      },
+      criterion ?? null,
+    ),
+  });
+});
+
+/** DELETE /api/rubrics/:id — delete one metric */
+export const DELETE = requireAdmin(async (_req: NextRequest, _session, context) => {
+  const id = context?.params?.id;
+  if (!id) {
+    return NextResponse.json({ error: { code: "BAD_REQUEST", message: "Thiếu ID metric" } }, { status: 400 });
+  }
+
+  const [rubric] = await db.select({ id: rubrics.id }).from(rubrics).where(eq(rubrics.id, id));
+  if (!rubric) {
+    return NextResponse.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy metric" } }, { status: 404 });
+  }
+
+  const criteria = await db
+    .select({ id: rubricCriteria.id })
+    .from(rubricCriteria)
+    .where(eq(rubricCriteria.rubricId, id));
+
+  if (criteria.length > 0) {
+    const [referencedScore] = await db
+      .select({ id: reviewScores.id })
+      .from(reviewScores)
+      .where(inArray(reviewScores.criterionId, criteria.map((criterion) => criterion.id)))
+      .limit(1);
+
+    if (referencedScore) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "METRIC_IN_USE",
+            message: "Metric đã có dữ liệu chấm và không thể xóa",
+          },
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  await db.transaction(async (tx: any) => {
+    await tx.delete(rubricCriteria).where(eq(rubricCriteria.rubricId, id));
+    await tx.delete(rubrics).where(eq(rubrics.id, id));
+  });
+
+  return NextResponse.json({ data: { id } });
 });

@@ -63,14 +63,6 @@ interface ClaimRating {
   expertName: string | null;
 }
 
-const RUBRIC_STAR_LABELS: Record<number, string> = {
-  1: "Rất kém",
-  2: "Kém",
-  3: "Trung bình",
-  4: "Tốt",
-  5: "Rất tốt",
-};
-
 const VERDICT_CFG: Record<string, { label: string; cls: string }> = {
   correct: { label: "Đúng", cls: "bg-green-100 text-green-700" },
   incorrect: { label: "Sai", cls: "bg-red-100 text-red-700" },
@@ -164,10 +156,57 @@ function buildSources(data: PreviewData): SourceItem[] {
   }
 }
 
-function starLabelCls(rating: number): string {
+function metricLabelCls(rating: number, scale: ScaleItem[]): string {
+  const label = scale.find((item) => item.score === rating)?.label.toLowerCase() ?? "";
+  if (/(pass|passed|đạt)/i.test(label)) return "text-green-600";
+  if (/(fail|failed|không đạt|trượt)/i.test(label)) return "text-red-500";
+  if (scale.length <= 2) return rating === Math.max(...scale.map((item) => item.score)) ? "text-green-600" : "text-red-500";
   if (rating >= 4) return "text-green-600";
   if (rating <= 2) return "text-red-500";
   return "text-amber-500";
+}
+
+function metricButtonClass(item: ScaleItem, scale: ScaleItem[], selected: boolean): string {
+  const color = metricLabelCls(item.score, scale);
+  const selectedClass = color.includes("green")
+    ? "border-green-500 bg-green-50 text-green-700"
+    : color.includes("red")
+      ? "border-red-500 bg-red-50 text-red-700"
+      : "border-amber-500 bg-amber-50 text-amber-700";
+
+  return selected
+    ? selectedClass
+    : "border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-700";
+}
+
+function MetricPreviewControl({
+  rating,
+  scale,
+  onChange,
+}: {
+  rating: number;
+  scale: ScaleItem[];
+  onChange: (rating: number) => void;
+}) {
+  return (
+    <div className="flex max-w-[260px] shrink-0 flex-wrap justify-end gap-1.5">
+      {scale.map((item) => {
+        const selected = item.score === rating;
+        return (
+          <button
+            key={item.score}
+            type="button"
+            title={item.description}
+            aria-label={item.label}
+            onClick={() => onChange(selected ? 0 : item.score)}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${metricButtonClass(item, scale, selected)}`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -624,7 +663,7 @@ export default function AdminPreviewPage({
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {activeTab === "rubric" ? (
               <>
-                {/* Rubric criteria */}
+                {/* Metric checks */}
                 <div className="bg-white rounded-xl border border-slate-100 p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <p className="text-sm font-bold text-slate-700">Chấm điểm Section</p>
@@ -634,7 +673,7 @@ export default function AdminPreviewPage({
                   </div>
                   {criteria.length === 0 ? (
                     <p className="text-xs text-slate-400 italic">
-                      Chưa có rubric cho domain {data.batch?.domain ?? "—"}.
+                      Chưa có metric cho lĩnh vực {data.batch?.domain ?? "—"}.
                     </p>
                   ) : (
                     <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-0">
@@ -653,16 +692,17 @@ export default function AdminPreviewPage({
                                 )}
                                 <div className="mt-1">
                                   {rating > 0 ? (
-                                    <span className={`text-xs font-medium ${starLabelCls(rating)}`}>
-                                      {RUBRIC_STAR_LABELS[rating]}
+                                    <span className={`text-xs font-medium ${metricLabelCls(rating, c.scale)}`}>
+                                      {c.scale.find((item) => item.score === rating)?.label ?? rating}
                                     </span>
                                   ) : (
                                     <span className="text-xs text-slate-300">Chưa chấm</span>
                                   )}
                                 </div>
                               </div>
-                              <PreviewStars
+                              <MetricPreviewControl
                                 rating={rating}
+                                scale={c.scale}
                                 onChange={(r) => setCriterionRating(activeSectionIdx, c.id, r)}
                               />
                             </div>

@@ -897,7 +897,7 @@ export default function ReviewPage({
           {/* Scoring area */}
           <div className="p-5 space-y-4">
 
-            {/* Section A: Rubric scoring */}
+            {/* Section A: Metric scoring */}
             <div className="bg-white rounded-xl border border-slate-100 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <p className="text-sm font-bold text-slate-700">Chấm điểm Section</p>
@@ -908,7 +908,7 @@ export default function ReviewPage({
 
               {criteria.length === 0 ? (
                 <p className="text-xs text-slate-400 italic">
-                  Chưa có rubric cho lĩnh vực này.
+                  Chưa có metric cho lĩnh vực này.
                 </p>
               ) : (
                 <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-0">

@@ -12,13 +12,13 @@ import {
   assignments,
   profiles,
 } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, inArray } from "drizzle-orm";
 import { getSignedUrl } from "@/lib/supabase-storage";
 
 /**
  * GET /api/admin/articles/[id]/preview
  *
- * Admin-only read-only view of an article + its rubric. Mirrors the shape of
+ * Admin-only read-only view of an article + its metrics. Mirrors the shape of
  * /api/articles/[id]/review (used by the expert flow) but does not require an
  * assignment, never returns drafts, and never persists state. Used by the
  * admin "preview as expert" page so admin can see how the review form looks
@@ -90,19 +90,21 @@ export const GET = requireAdmin(async (_req, _session, context) => {
 
   let rubricData: { id: string; criteria: unknown[] } | null = null;
   if (batchFull) {
-    const [rubric] = await db
+    const domainRubrics = await db
       .select()
       .from(rubrics)
-      .where(eq(rubrics.domain, batchFull.domain));
+      .where(eq(rubrics.domain, batchFull.domain))
+      .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
-    if (rubric) {
+    if (domainRubrics.length > 0) {
+      const rubricOrder = new Map(domainRubrics.map((rubric, index) => [rubric.id, index]));
       const criteria = await db
         .select()
         .from(rubricCriteria)
-        .where(eq(rubricCriteria.rubricId, rubric.id));
+        .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric) => rubric.id)));
 
       rubricData = {
-        id: rubric.id,
+        id: domainRubrics[0].id,
         criteria: criteria
           .map((c) => ({
             id: c.id,
@@ -111,11 +113,15 @@ export const GET = requireAdmin(async (_req, _session, context) => {
             scale: JSON.parse(c.scale),
             required: c.required === 1,
             sortOrder: c.sortOrder,
+            rubricOrder: rubricOrder.get(c.rubricId) ?? 0,
           }))
           .sort(
             (a, b) =>
-              (a.sortOrder as number) - (b.sortOrder as number)
-          ),
+              (a.rubricOrder as number) - (b.rubricOrder as number) ||
+              (a.sortOrder as number) - (b.sortOrder as number) ||
+              String(a.id).localeCompare(String(b.id))
+          )
+          .map(({ rubricOrder, ...metric }) => metric),
       };
     }
   }

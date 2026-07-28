@@ -1,26 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { labelForDomain } from "@/lib/labels";
 
 interface Rubric {
   id: string;
   name: string;
   domain: string;
+  description: string;
+  required: boolean;
+  scale: { label: string }[];
   createdAt: number | string;
-  criteria: { id: string }[];
 }
-
-const DOMAIN_LABEL: Record<string, string> = {
-  law:     "Pháp luật",
-  medical: "Y tế",
-  tourism: "Du lịch",
-};
-
-const DOMAIN_BADGE: Record<string, string> = {
-  law:     "bg-blue-100 text-blue-700",
-  medical: "bg-green-100 text-green-700",
-  tourism: "bg-amber-100 text-amber-700",
-};
 
 function formatDate(raw: number | string): string {
   const d = new Date(typeof raw === "number" ? raw : raw);
@@ -35,6 +26,7 @@ export default function AdminRubricsPage() {
   // Delete confirm dialog
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     fetch("/api/rubrics")
@@ -49,14 +41,20 @@ export default function AdminRubricsPage() {
   async function confirmDelete() {
     if (!deleteId) return;
     setDeleting(true);
+    setDeleteError("");
     try {
-      await fetch(`/api/rubrics/${deleteId}`, { method: "DELETE" });
+      const response = await fetch(`/api/rubrics/${deleteId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        setDeleteError(json.error?.message ?? "Không thể xóa metric");
+        return;
+      }
       setRubrics((prev) => prev.filter((r) => r.id !== deleteId));
+      setDeleteId(null);
     } catch {
-      // non-fatal — optimistic removal already done if needed
+      setDeleteError("Không thể xóa metric");
     } finally {
       setDeleting(false);
-      setDeleteId(null);
     }
   }
 
@@ -64,7 +62,7 @@ export default function AdminRubricsPage() {
     <>
         {/* Title row + create button */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Quản lý rubric</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Quản lý metrics</h1>
           <a
             href="/admin/rubrics/new"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
@@ -72,7 +70,7 @@ export default function AdminRubricsPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Tạo rubric mới
+            Tạo metric mới
           </a>
         </div>
 
@@ -82,9 +80,10 @@ export default function AdminRubricsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Tên rubric</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Tên metric</th>
                   <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Lĩnh vực</th>
-                  <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Số tiêu chí</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Thông số</th>
+                  <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Bắt buộc</th>
                   <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ngày tạo</th>
                   <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Hành động</th>
                 </tr>
@@ -92,34 +91,32 @@ export default function AdminRubricsPage() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-8 text-center">
+                    <td colSpan={6} className="px-5 py-8 text-center">
                       <p className="text-slate-500 text-sm">Đang tải...</p>
                     </td>
                   </tr>
                 ) : rubrics.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-400">
-                      Chưa có rubric nào. Hãy tạo rubric đầu tiên.
+                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-400">
+                      Chưa có metric nào. Hãy tạo metric đầu tiên.
                     </td>
                   </tr>
                 ) : (
-                  rubrics.map((r) => {
-                    const domainLabel = DOMAIN_LABEL[r.domain] ?? r.domain;
-                    const domainCls   = DOMAIN_BADGE[r.domain]  ?? "bg-slate-100 text-slate-600";
-                    return (
+                  rubrics.map((r) => (
                       <tr key={r.id} className="hover:bg-blue-50/50 transition-colors">
                         <td className="px-5 py-4">
                           <span className="font-medium text-slate-900">{r.name}</span>
                         </td>
                         <td className="px-5 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${domainCls}`}>
-                            {domainLabel}
+                          <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                            {labelForDomain(r.domain)}
                           </span>
                         </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {r.scale?.map((item) => item.label).join(" / ") ?? "—"}
+                        </td>
                         <td className="px-5 py-4 text-center">
-                          <span className="text-slate-700 font-mono">
-                            {r.criteria?.length ?? 0}
-                          </span>
+                          {r.required ? "Có" : "Không"}
                         </td>
                         <td className="px-5 py-4 text-slate-500">
                           {formatDate(r.createdAt)}
@@ -133,7 +130,10 @@ export default function AdminRubricsPage() {
                               Xem
                             </a>
                             <button
-                              onClick={() => setDeleteId(r.id)}
+                              onClick={() => {
+                                setDeleteError("");
+                                setDeleteId(r.id);
+                              }}
                               className="text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
                             >
                               Xóa
@@ -141,8 +141,7 @@ export default function AdminRubricsPage() {
                           </div>
                         </td>
                       </tr>
-                    );
-                  })
+                    ))
                 )}
               </tbody>
             </table>
@@ -153,13 +152,17 @@ export default function AdminRubricsPage() {
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl border border-slate-200 p-6 w-full max-w-sm shadow-xl">
-            <h2 className="text-base font-semibold text-slate-900 mb-2">Xóa rubric?</h2>
+            <h2 className="text-base font-semibold text-slate-900 mb-2">Xóa metric?</h2>
             <p className="text-sm text-slate-500 mb-6">
-              Hành động này không thể hoàn tác. Rubric sẽ bị xóa vĩnh viễn.
+              Hành động này không thể hoàn tác. Metric sẽ bị xóa vĩnh viễn.
             </p>
+            {deleteError && <p className="mb-4 text-sm text-red-600">{deleteError}</p>}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setDeleteId(null)}
+                onClick={() => {
+                  setDeleteError("");
+                  setDeleteId(null);
+                }}
                 className="border border-slate-200 bg-white text-slate-600 hover:border-blue-300 rounded-lg px-3 py-2 text-sm transition-colors"
               >
                 Hủy

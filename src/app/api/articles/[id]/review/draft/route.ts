@@ -4,13 +4,13 @@ import { requireExpert } from "@/lib/auth-middleware";
 import { db } from "@/lib/db";
 import { assignments, articles, batches, rubricCriteria, rubrics } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, asc } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
 /**
  * POST /api/articles/[id]/review/draft
  * Auto-save endpoint — called every 30s from client on input change.
- * Accepts partial data; no required-criteria validation.
+ * Accepts partial data; no required-metric validation.
  * Upserts a draft review and its scores.
  */
 function allowedScoresFromScale(scale: string | null): Set<number> {
@@ -77,19 +77,20 @@ export const POST = requireExpert(async (req, session, context) => {
       const [batch] = await db
         .select({ domain: batches.domain })
         .from(batches)
-        .where(eq(batches.id, article.batchId));
+      .where(eq(batches.id, article.batchId));
 
       if (batch) {
-        const [rubric] = await db
+        const domainRubrics = await db
           .select({ id: rubrics.id })
           .from(rubrics)
-          .where(eq(rubrics.domain, batch.domain));
+          .where(eq(rubrics.domain, batch.domain))
+          .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
-        if (rubric) {
+        if (domainRubrics.length > 0) {
           const criteria = await db
             .select({ id: rubricCriteria.id, scale: rubricCriteria.scale })
             .from(rubricCriteria)
-            .where(eq(rubricCriteria.rubricId, rubric.id));
+            .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric: any) => rubric.id)));
 
           const allowedScoresByCriterion = new Map(
             criteria.map((c) => [c.id, allowedScoresFromScale(c.scale)])
@@ -103,7 +104,7 @@ export const POST = requireExpert(async (req, session, context) => {
               {
                 error: {
                   code: "INVALID_SCORE",
-                  message: "Điểm đánh giá không nằm trong metric rubric được khai báo",
+                  message: "Điểm đánh giá không nằm trong metric được khai báo",
                   criterionId: invalidScore.criterionId,
                 },
               },

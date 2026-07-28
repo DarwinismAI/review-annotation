@@ -13,13 +13,9 @@ interface RubricData {
   id: string;
   name: string;
   domain: string;
-  criteria: {
-    id: string;
-    name: string;
-    description: string;
-    required: boolean;
-    scale: ScaleItem[];
-  }[];
+  description: string;
+  required: boolean;
+  scale: ScaleItem[];
 }
 
 export default function RubricEditPage({
@@ -37,13 +33,13 @@ export default function RubricEditPage({
       try {
         const res = await fetch(`/api/rubrics/${id}`);
         if (!res.ok) {
-          setError("Không tìm thấy rubric");
+          setError("Không tìm thấy metric");
           return;
         }
         const json = (await res.json()) as { data: RubricData };
         setRubric(json.data);
       } catch {
-        setError("Đã xảy ra lỗi khi tải rubric");
+        setError("Đã xảy ra lỗi khi tải metric");
       } finally {
         setLoading(false);
       }
@@ -62,7 +58,7 @@ export default function RubricEditPage({
   if (error || !rubric) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-red-500 text-sm">{error ?? "Không tìm thấy rubric"}</p>
+        <p className="text-red-500 text-sm">{error ?? "Không tìm thấy metric"}</p>
       </div>
     );
   }
@@ -71,9 +67,9 @@ export default function RubricEditPage({
     <>
         {/* Page heading */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Chỉnh sửa rubric</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Chỉnh sửa metric</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Cập nhật thông tin và các tiêu chí chấm điểm.
+            Cập nhật thông tin, thông số chấm và lĩnh vực của metric.
           </p>
         </div>
 

@@ -65,6 +65,10 @@ function buildPayload(item: HumanityLog, index: number, title: string) {
 }
 
 async function main() {
+  if (!DB_PATH.startsWith("file:")) {
+    throw new Error("seed-humanity-local only accepts a local file: database");
+  }
+
   const raw = JSON.parse(await readFile(SOURCE_PATH, "utf8")) as unknown;
   if (!Array.isArray(raw)) {
     throw new Error("humanity_output.json must be a JSON array");
@@ -124,27 +128,44 @@ async function main() {
     await db.execute({ sql: `DELETE FROM batches WHERE id = ?`, args: [String(row.id)] });
   }
 
-  const rubricId = "rubric-safety-compliance";
-  await db.execute({ sql: `DELETE FROM rubric_criteria WHERE rubric_id = ?`, args: [rubricId] });
-  await db.execute({ sql: `DELETE FROM rubrics WHERE id = ?`, args: [rubricId] });
-  await db.execute({
-    sql: `INSERT INTO rubrics (id, name, domain, created_by, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [rubricId, "Rubric An toàn - Tuân thủ", DOMAIN, ADMIN_ID, now, now],
-  });
-
-  const criteria = [
-    ["criterion-safety-risk", "Nhận diện rủi ro", "Đánh giá mức độ nhận diện nội dung có thể gây hại hoặc vi phạm chính sách."],
-    ["criterion-policy-fit", "Khớp chính sách", "Đánh giá quyết định allow/block có nhất quán với nhãn policy hay không."],
-    ["criterion-review-note", "Lý do review", "Đánh giá chất lượng giải thích, căn cứ, và khả năng audit lại."],
+  const metrics = [
+    [
+      "rubric-safety-risk",
+      "criterion-safety-risk",
+      "Nhận diện rủi ro",
+      "Đánh giá mức độ nhận diện nội dung có thể gây hại hoặc vi phạm chính sách.",
+    ],
+    [
+      "rubric-policy-fit",
+      "criterion-policy-fit",
+      "Khớp chính sách",
+      "Đánh giá quyết định allow/block có nhất quán với nhãn policy hay không.",
+    ],
+    [
+      "rubric-review-note",
+      "criterion-review-note",
+      "Lý do review",
+      "Đánh giá chất lượng giải thích, căn cứ, và khả năng audit lại.",
+    ],
   ];
-  for (let i = 0; i < criteria.length; i++) {
-    const [id, name, description] = criteria[i];
+  for (const [rubricId, criterionId] of metrics) {
+    await db.execute({ sql: `DELETE FROM rubric_criteria WHERE rubric_id = ? OR id = ?`, args: [rubricId, criterionId] });
+    await db.execute({ sql: `DELETE FROM rubrics WHERE id = ?`, args: [rubricId] });
+  }
+  await db.execute({ sql: `DELETE FROM rubrics WHERE id = ?`, args: ["rubric-safety-compliance"] });
+
+  for (let i = 0; i < metrics.length; i++) {
+    const [rubricId, criterionId, name, description] = metrics[i];
+    await db.execute({
+      sql: `INSERT INTO rubrics (id, name, domain, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [rubricId, name, DOMAIN, ADMIN_ID, now + i, now + i],
+    });
     await db.execute({
       sql: `INSERT INTO rubric_criteria
             (id, rubric_id, name, description, scale, required, sort_order, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-      args: [id, rubricId, name, description, SCALE, i, now, now],
+      args: [criterionId, rubricId, name, description, SCALE, 0, now, now],
     });
   }
 

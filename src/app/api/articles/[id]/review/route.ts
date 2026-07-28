@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { reviews, reviewScores } from "@/db/reviews";
 import { compensationSurveyResponses } from "@/db/compensation-survey";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { getSignedUrl } from "@/lib/supabase-storage";
@@ -121,8 +121,7 @@ export const GET = requireExpert(async (req, session, context) => {
     .orderBy(asc(articleSegments.order));
   const segments = segmentRows.length > 0 ? segmentRows : null;
 
-  // Fetch rubric via batch domain — find the rubric linked to this batch's domain
-  // Rubric is linked per batch; we fetch the most recent rubric for the batch domain.
+  // Fetch all metrics linked to this batch's domain.
   const [batchFull] = await db
     .select()
     .from(batches)
@@ -130,28 +129,34 @@ export const GET = requireExpert(async (req, session, context) => {
 
   let rubricData: { id: string; criteria: unknown[] } | null = null;
   if (batchFull) {
-    const [rubric] = await db
+    const domainRubrics = await db
       .select()
       .from(rubrics)
-      .where(eq(rubrics.domain, batchFull.domain));
+      .where(eq(rubrics.domain, batchFull.domain))
+      .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
 
-    if (rubric) {
+    if (domainRubrics.length > 0) {
+      const rubricOrder = new Map(domainRubrics.map((rubric: any, index: number) => [rubric.id, index]));
       const criteria = await db
         .select()
         .from(rubricCriteria)
-        .where(eq(rubricCriteria.rubricId, rubric.id));
+        .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric: any) => rubric.id)));
 
       rubricData = {
-        id: rubric.id,
+        id: domainRubrics[0].id,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        criteria: criteria.map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          description: c.description,
-          scale: JSON.parse(c.scale),
-          required: c.required === 1,
-          sortOrder: c.sortOrder,
-        })),
+        criteria: criteria
+          .map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            description: c.description,
+            scale: JSON.parse(c.scale),
+            required: c.required === 1,
+            sortOrder: c.sortOrder,
+            rubricOrder: rubricOrder.get(c.rubricId) ?? 0,
+          }))
+          .sort((a: any, b: any) => a.rubricOrder - b.rubricOrder || a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+          .map(({ rubricOrder, ...metric }: any) => metric),
       };
     }
   }
@@ -230,7 +235,7 @@ export const GET = requireExpert(async (req, session, context) => {
 // ─── POST /api/articles/[id]/review ─────────────────────────────────────────
 
 /**
- * Submit a completed review. Validates all required criteria are scored.
+ * Submit a completed review. Validates all required metrics are scored.
  * For paragraph mode: one POST per paragraph with paragraphId set.
  */
 export const POST = requireExpert(async (req, session, context) => {
@@ -342,7 +347,7 @@ export const POST = requireExpert(async (req, session, context) => {
     }
   }
 
-  // Validate required criteria
+  // Validate required metrics
   const [article] = await db
     .select({ batchId: articles.batchId })
     .from(articles)
@@ -355,16 +360,16 @@ export const POST = requireExpert(async (req, session, context) => {
       .where(eq(batches.id, article.batchId));
 
     if (batch) {
-      const [rubric] = await db
+      const domainRubrics = await db
         .select({ id: rubrics.id })
         .from(rubrics)
         .where(eq(rubrics.domain, batch.domain));
 
-      if (rubric) {
+      if (domainRubrics.length > 0) {
         const allCriteria = await db
           .select({ id: rubricCriteria.id, required: rubricCriteria.required, scale: rubricCriteria.scale })
           .from(rubricCriteria)
-          .where(eq(rubricCriteria.rubricId, rubric.id));
+          .where(inArray(rubricCriteria.rubricId, domainRubrics.map((rubric: any) => rubric.id)));
 
         const requiredIds = allCriteria
           .filter((c: { id: string; required: number | boolean | null }) => c.required === 1 || c.required === true)
@@ -378,7 +383,7 @@ export const POST = requireExpert(async (req, session, context) => {
             {
               error: {
                 code: "MISSING_REQUIRED_SCORES",
-                message: "Thiếu điểm đánh giá cho các tiêu chí bắt buộc",
+                message: "Thiếu điểm đánh giá cho các metric bắt buộc",
                 missingCriterionIds: missingIds,
               },
             },
@@ -398,7 +403,7 @@ export const POST = requireExpert(async (req, session, context) => {
             {
               error: {
                 code: "INVALID_SCORE",
-                message: "Điểm đánh giá không nằm trong metric rubric được khai báo",
+                message: "Điểm đánh giá không nằm trong metric được khai báo",
                 criterionId: invalidScore.criterionId,
               },
             },
