@@ -4,12 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DOMAIN_KEYS, labelForDomain } from "@/lib/labels";
-
-interface ScaleItem {
-  score: number;
-  label: string;
-  description: string;
-}
+import { defaultPassFailScale, type PassFailScaleItem } from "@/lib/rubrics/pass-fail-scale";
 
 interface RubricFormProps {
   initialData?: {
@@ -18,14 +13,9 @@ interface RubricFormProps {
     domain: string;
     description: string;
     required: boolean;
-    scale: ScaleItem[];
+    scale: PassFailScaleItem[];
   };
 }
-
-const DEFAULT_SCALE: ScaleItem[] = [
-  { score: 1, label: "Failed", description: "Không đạt metric này." },
-  { score: 2, label: "Pass", description: "Đạt metric này." },
-];
 
 export default function RubricForm({ initialData }: RubricFormProps) {
   const router = useRouter();
@@ -35,7 +25,6 @@ export default function RubricForm({ initialData }: RubricFormProps) {
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [domain, setDomain] = useState(initialData?.domain ?? "safety_compliance");
   const [required, setRequired] = useState(initialData?.required ?? true);
-  const [scale, setScale] = useState<ScaleItem[]>(initialData?.scale?.length ? initialData.scale : DEFAULT_SCALE);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -43,25 +32,6 @@ export default function RubricForm({ initialData }: RubricFormProps) {
   function showToast(message: string) {
     setToast(message);
     setTimeout(() => setToast(null), 2500);
-  }
-
-  function updateScale(index: number, patch: Partial<ScaleItem>) {
-    setScale((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
-  }
-
-  function addScaleItem() {
-    setScale((current) => [
-      ...current,
-      {
-        score: current.length + 1,
-        label: `Mức ${current.length + 1}`,
-        description: "",
-      },
-    ]);
-  }
-
-  function removeScaleItem(index: number) {
-    setScale((current) => current.filter((_, itemIndex) => itemIndex !== index).map((item, itemIndex) => ({ ...item, score: itemIndex + 1 })));
   }
 
   async function handleSave() {
@@ -75,22 +45,12 @@ export default function RubricForm({ initialData }: RubricFormProps) {
       setError("Metric phải gắn với một lĩnh vực");
       return;
     }
-    if (scale.length < 2 || scale.some((item) => !item.label.trim() || !item.description.trim())) {
-      setError("Scale cần ít nhất 2 mức, mỗi mức có label và mô tả");
-      return;
-    }
-
-    const normalizedScale = scale.map((item, index) => ({
-      score: index + 1,
-      label: item.label.trim(),
-      description: item.description.trim(),
-    }));
     const payload = {
       name: name.trim(),
       domain,
       description: description.trim(),
       required,
-      scale: normalizedScale,
+      scale: defaultPassFailScale(),
     };
 
     setSaving(true);
@@ -177,18 +137,11 @@ export default function RubricForm({ initialData }: RubricFormProps) {
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-slate-900">Thông số chấm</h2>
-          <button
-            type="button"
-            onClick={addScaleItem}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition-colors hover:border-blue-300"
-          >
-            Thêm mức
-          </button>
         </div>
 
         <div className="space-y-3">
-          {scale.map((item, index) => (
-            <div key={index} className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[96px_180px_1fr_auto]">
+          {defaultPassFailScale().map((item, index) => (
+            <div key={item.label} className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[96px_180px_1fr]">
               <div>
                 <label className="mb-1 block text-xs font-medium uppercase text-slate-400">Score</label>
                 <input
@@ -203,8 +156,8 @@ export default function RubricForm({ initialData }: RubricFormProps) {
                 <input
                   type="text"
                   value={item.label}
-                  onChange={(event) => updateScale(index, { label: event.target.value })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
+                  disabled
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
                 />
               </div>
               <div>
@@ -212,18 +165,10 @@ export default function RubricForm({ initialData }: RubricFormProps) {
                 <input
                   type="text"
                   value={item.description}
-                  onChange={(event) => updateScale(index, { description: event.target.value })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
+                  disabled
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => removeScaleItem(index)}
-                disabled={scale.length <= 2}
-                className="self-end rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-red-500 transition-colors hover:border-red-300 disabled:opacity-40"
-              >
-                Xóa
-              </button>
             </div>
           ))}
         </div>

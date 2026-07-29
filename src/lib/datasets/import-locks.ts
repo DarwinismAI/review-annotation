@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
 
 function canUsePostgresLocks() {
-  return Boolean(process.env.DATABASE_URL);
+  const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  return Boolean(url?.trim());
 }
 
 export async function lockDatasetImportDomain(tx: any, domain: string) {

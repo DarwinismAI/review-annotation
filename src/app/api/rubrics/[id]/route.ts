@@ -10,17 +10,12 @@ import { reviewScores } from "@/db/reviews";
 import { requireAdmin } from "@/lib/auth-middleware";
 import { isDomainKey } from "@/lib/labels";
 import { toMetricResponse } from "@/lib/rubric-metric-adapter";
-
-interface ScaleItem {
-  score: number;
-  label: string;
-  description: string;
-}
+import { defaultPassFailScale, isPassFailScale, type PassFailScaleItem } from "@/lib/rubrics/pass-fail-scale";
 
 interface MetricInput {
   name: string;
   description?: string;
-  scale: ScaleItem[];
+  scale: PassFailScaleItem[];
   required?: boolean;
 }
 
@@ -57,23 +52,19 @@ function isReviewScoreCriterionConstraint(error: unknown) {
 }
 
 function normalizeMetricInput(body: MetricBody) {
-  const metric = Array.isArray(body.scale)
-    ? body
-    : Array.isArray(body.criteria) && body.criteria.length === 1
-      ? body.criteria[0]
-      : null;
+  const metric = Array.isArray(body.criteria) && body.criteria.length === 1
+    ? body.criteria[0]
+    : body;
 
-  if (!metric) {
+  if (Array.isArray(body.criteria) && body.criteria.length !== 1) {
     return { ok: false as const, message: "Mỗi metric chỉ có một cấu hình thông số" };
   }
-  if (!metric.name?.trim() || !Array.isArray(metric.scale) || metric.scale.length < 2) {
-    return { ok: false as const, message: "Metric cần tên và ít nhất 2 mức chấm" };
+  if (!metric.name?.trim()) {
+    return { ok: false as const, message: "Metric cần tên" };
   }
 
-  for (const item of metric.scale) {
-    if (!item.label?.trim() || !item.description?.trim()) {
-      return { ok: false as const, message: `Metric "${metric.name}" thiếu label hoặc mô tả cho mức ${item.score}` };
-    }
+  if (Array.isArray(metric.scale) && !isPassFailScale(metric.scale)) {
+    return { ok: false as const, message: "Metric chỉ hỗ trợ scale Failed/Pass" };
   }
 
   return {
@@ -82,11 +73,7 @@ function normalizeMetricInput(body: MetricBody) {
       ...metric,
       name: metric.name.trim(),
       description: metric.description?.trim() ?? "",
-      scale: metric.scale.map((item, index) => ({
-        score: index + 1,
-        label: item.label.trim(),
-        description: item.description.trim(),
-      })),
+      scale: defaultPassFailScale(),
     },
   };
 }
@@ -139,7 +126,7 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
 
   let normalized = null;
 
-  if (Array.isArray(body.scale) || Array.isArray(body.criteria)) {
+  if (body.name?.trim() || Array.isArray(body.scale) || Array.isArray(body.criteria)) {
     normalized = normalizeMetricInput(body);
     if (!normalized.ok) {
       return NextResponse.json({ error: { code: "BAD_REQUEST", message: normalized.message } }, { status: 400 });
@@ -209,10 +196,14 @@ export const PATCH = requireAdmin(async (req: NextRequest, _session, context) =>
           createdAt: now,
         });
       }
-    } else if (body.name?.trim() && existingCriterion) {
+    } else if (existingCriterion) {
       await tx
         .update(rubricCriteria)
-        .set({ name: metricName, updatedAt: now })
+        .set({
+          name: metricName,
+          scale: JSON.stringify(defaultPassFailScale()),
+          updatedAt: now,
+        })
         .where(eq(rubricCriteria.id, existingCriterion.id));
     }
 

@@ -45,7 +45,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Ensure production safety rubric metrics
+      - name: Apply production safety domain constraints
         run: pnpm exec tsx scripts/apply-safety-domain-constraints.ts
 
       - name: Materialize JSONL from secret source

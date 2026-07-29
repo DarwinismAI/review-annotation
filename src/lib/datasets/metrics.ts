@@ -7,6 +7,10 @@ export interface MetricConfigInput {
   sortOrder: number;
 }
 
+function isPassFailValues(values: string[]) {
+  return values.length === 2 && values[0] === "Failed" && values[1] === "Pass";
+}
+
 export function validateMetricConfig(metrics: MetricConfigInput[]) {
   const keys = new Set<string>();
 
@@ -14,7 +18,7 @@ export function validateMetricConfig(metrics: MetricConfigInput[]) {
     if (!metric.key.trim()) return { ok: false as const, reason: "EMPTY_METRIC_KEY" as const };
     if (keys.has(metric.key)) return { ok: false as const, reason: "DUPLICATE_METRIC_KEY" as const, key: metric.key };
     if (!metric.label.trim()) return { ok: false as const, reason: "EMPTY_METRIC_LABEL" as const, key: metric.key };
-    if (metric.scale.values.length < 2) return { ok: false as const, reason: "METRIC_SCALE_TOO_SHORT" as const, key: metric.key };
+    if (!isPassFailValues(metric.scale.values)) return { ok: false as const, reason: "METRIC_SCALE_NOT_PASS_FAIL" as const, key: metric.key };
     keys.add(metric.key);
   }
 

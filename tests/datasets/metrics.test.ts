@@ -14,6 +14,19 @@ const config = validateMetricConfig([
 assert.equal(config.ok, true);
 
 assert.deepEqual(
+  validateMetricConfig([
+    {
+      key: "severity",
+      label: "Severity",
+      scale: { values: ["1", "2", "3", "4", "5"] },
+      required: true,
+      sortOrder: 0,
+    },
+  ]),
+  { ok: false, reason: "METRIC_SCALE_NOT_PASS_FAIL", key: "severity" },
+);
+
+assert.deepEqual(
   validateMetricSubmission({
     assignedMetricIds: ["policy_violation"],
     metrics: [{ id: "policy_violation", scale: { values: ["Failed", "Pass"] } }],

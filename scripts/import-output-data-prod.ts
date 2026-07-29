@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { basename, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import postgres from "postgres";
 
 type JsonRecord = Record<string, unknown>;
@@ -237,13 +236,22 @@ function metricId(datasetId: string, key: string): string {
 
 function validateRubricMetrics(metrics: RubricMetric[], domain: string): RubricMetric[] {
   if (metrics.length === 0) throw new Error(`no rubric metrics found for domain ${domain}`);
-  const invalidMetric = metrics.find((metric: RubricMetric) => metric.scale.values.length === 0);
-  if (invalidMetric) throw new Error(`rubric metric ${invalidMetric.key} has no scale labels`);
+  const invalidMetric = metrics.find((metric: RubricMetric) => {
+    const values = metric.scale.values;
+    return values.length !== 2 || values[0] !== "Failed" || values[1] !== "Pass";
+  });
+  if (invalidMetric) throw new Error(`rubric metric ${invalidMetric.key} must use Failed/Pass scale`);
   return metrics;
 }
 
 function getDatabaseUrl(): string | undefined {
   return cleanEnvValue(process.env.DATABASE_URL ?? process.env.POSTGRES_URL);
+}
+
+function requireDatabaseUrl(action: string): string {
+  const databaseUrl = getDatabaseUrl();
+  if (!databaseUrl) throw new Error(`DATABASE_URL or POSTGRES_URL is required to ${action}`);
+  return databaseUrl;
 }
 
 function cleanEnvValue(value: string | undefined): string | undefined {
@@ -253,22 +261,6 @@ function cleanEnvValue(value: string | undefined): string | undefined {
     return trimmed.slice(1, -1);
   }
   return trimmed;
-}
-
-function getSupabaseConfig(): { url: string; serviceRoleKey: string } | null {
-  const url = cleanEnvValue(process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const serviceRoleKey = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY);
-  return url && serviceRoleKey ? { url, serviceRoleKey } : null;
-}
-
-function createServiceRoleClient(): SupabaseClient {
-  const config = getSupabaseConfig();
-  if (!config) {
-    throw new Error("DATABASE_URL/POSTGRES_URL or Supabase service-role env is required");
-  }
-  return createClient(config.url, config.serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 }
 
 function sourceIdentity(sourceName: string, hash: string): SourceIdentity {
@@ -308,61 +300,10 @@ async function loadRubricMetricsPostgres(sql: any, domain: string): Promise<Rubr
   return validateRubricMetrics(metrics, domain);
 }
 
-async function loadRubricMetricsSupabase(supabase: SupabaseClient, domain: string): Promise<RubricMetric[]> {
-  const { data: rubricRows, error: rubricError } = await supabase
-    .from("rubrics")
-    .select("id,name,created_at")
-    .eq("domain", domain)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
-  if (rubricError) throw new Error(`failed to load rubrics: ${rubricError.message}`);
-  const rubrics = (rubricRows ?? []) as Array<{ id: string; name: string; created_at: unknown }>;
-  if (rubrics.length === 0) return validateRubricMetrics([], domain);
-
-  const rubricById = new Map(rubrics.map((rubric, index) => [rubric.id, { ...rubric, index }]));
-  const { data: criterionRows, error: criteriaError } = await supabase
-    .from("rubric_criteria")
-    .select("id,rubric_id,name,description,scale,required,sort_order")
-    .in("rubric_id", rubrics.map((rubric) => rubric.id))
-    .order("sort_order", { ascending: true })
-    .order("id", { ascending: true });
-  if (criteriaError) throw new Error(`failed to load rubric criteria: ${criteriaError.message}`);
-
-  const criteria = ((criterionRows ?? []) as Array<{
-    id: string;
-    rubric_id: string;
-    name: string;
-    description: string | null;
-    scale: string;
-    required: number | boolean;
-    sort_order: number | null;
-  }>).sort((left, right) => {
-    const leftRubric = rubricById.get(left.rubric_id)?.index ?? 0;
-    const rightRubric = rubricById.get(right.rubric_id)?.index ?? 0;
-    return leftRubric - rightRubric || Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0) || left.id.localeCompare(right.id);
-  });
-
-  return validateRubricMetrics(
-    criteria.map((row, index): RubricMetric => ({
-      key: String(row.id),
-      label: String(rubricById.get(row.rubric_id)?.name || row.name || row.id),
-      description: row.description ?? null,
-      scale: { values: scaleLabels(String(row.scale ?? "")) },
-      required: Boolean(row.required),
-      sortOrder: index,
-    })),
-    domain,
-  );
-}
-
 async function importRows(args: Args, parsed: ParsedFile, sourceName: string) {
+  const databaseUrl = requireDatabaseUrl("execute the production import");
   if (process.env.ALLOW_PROD_DATASET_IMPORT !== "1") {
     throw new Error("set ALLOW_PROD_DATASET_IMPORT=1 to execute the production import");
-  }
-  const databaseUrl = getDatabaseUrl();
-  if (!databaseUrl) {
-    await importRowsSupabase(args, parsed, sourceName);
-    return;
   }
 
   const sql = postgres(databaseUrl, { prepare: false });
@@ -488,190 +429,15 @@ async function importRows(args: Args, parsed: ParsedFile, sourceName: string) {
   }
 }
 
-async function supabaseMaybeSingle<T>(query: PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>): Promise<T | null> {
-  const { data, error } = await query;
-  if (error && error.code !== "PGRST116") throw new Error(error.message);
-  return data ?? null;
-}
-
-async function assertSupabaseMutation<T>(query: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T | null> {
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data ?? null;
-}
-
-async function findSupabaseExistingImport(supabase: SupabaseClient, identity: SourceIdentity) {
-  const byImportId = await supabaseMaybeSingle<any>(
-    supabase
-      .from("dataset_imports")
-      .select("id,dataset_id,source_filename,status,row_count,datasets(id,name)")
-      .eq("id", identity.importId)
-      .maybeSingle(),
-  );
-  if (byImportId) return byImportId;
-  return supabaseMaybeSingle<any>(
-    supabase
-      .from("dataset_imports")
-      .select("id,dataset_id,source_filename,status,row_count,datasets(id,name)")
-      .eq("source_filename", identity.sourceFilename)
-      .maybeSingle(),
-  );
-}
-
-async function hasSupabaseResultsForDataset(supabase: SupabaseClient, datasetId: string): Promise<boolean> {
-  const { count: assignmentCount, error: assignmentError } = await supabase
-    .from("annotation_assignments")
-    .select("id", { count: "exact", head: true })
-    .eq("dataset_id", datasetId);
-  if (assignmentError) throw new Error(`failed to check assignments: ${assignmentError.message}`);
-  if ((assignmentCount ?? 0) > 0) return true;
-
-  for (let offset = 0; ; offset += 200) {
-    const { data: rows, error: rowError } = await supabase.from("dataset_rows").select("id").eq("dataset_id", datasetId).range(offset, offset + 199);
-    if (rowError) throw new Error(`failed to check dataset rows: ${rowError.message}`);
-    const rowIds = (rows ?? []).map((row: { id: string }) => row.id);
-    if (rowIds.length === 0) return false;
-    const { count: resultCount, error: resultError } = await supabase
-      .from("annotation_results")
-      .select("id", { count: "exact", head: true })
-      .in("row_id", rowIds);
-    if (resultError) throw new Error(`failed to check annotation results: ${resultError.message}`);
-    if ((resultCount ?? 0) > 0) return true;
-    if (rowIds.length < 200) return false;
-  }
-}
-
-async function prepareSupabaseImportRetry(supabase: SupabaseClient, identity: SourceIdentity, rowCount: number): Promise<"skip" | "continue"> {
-  const existing = await findSupabaseExistingImport(supabase, identity);
-  if (!existing) return "continue";
-
-  const dataset = Array.isArray(existing.datasets) ? existing.datasets[0] : existing.datasets;
-  if (existing.status === "completed" && Number(existing.row_count) === rowCount) {
-    console.log(`IMPORT_SKIPPED existing dataset=${existing.dataset_id} name="${dataset?.name ?? ""}" rows=${existing.row_count}`);
-    return "skip";
-  }
-
-  const exactDeterministicImport = existing.id === identity.importId && existing.dataset_id === identity.datasetId;
-  if (!exactDeterministicImport) {
-    throw new Error(`source already exists but is incomplete: dataset=${existing.dataset_id} status=${existing.status} rows=${existing.row_count}`);
-  }
-  if (await hasSupabaseResultsForDataset(supabase, identity.datasetId)) {
-    throw new Error(`deterministic retry is blocked because dataset ${identity.datasetId} already has assignments or results`);
-  }
-  await assertSupabaseMutation(supabase.from("datasets").delete().eq("id", identity.datasetId));
-  console.log(`IMPORT_RETRY_CLEANUP dataset=${identity.datasetId}`);
-  return "continue";
-}
-
-async function assertNoSupabaseActiveImport(supabase: SupabaseClient, domain: string) {
-  const { data, error } = await supabase
-    .from("dataset_imports")
-    .select("id,dataset_id,datasets!inner(id,name,domain,status)")
-    .eq("status", "in_progress")
-    .eq("datasets.domain", domain)
-    .eq("datasets.status", "importing")
-    .limit(1);
-  if (error) throw new Error(`failed to check active imports: ${error.message}`);
-  const active = data?.[0] as any;
-  if (active) {
-    const dataset = Array.isArray(active.datasets) ? active.datasets[0] : active.datasets;
-    throw new Error(`active import exists for domain ${domain}: dataset=${active.dataset_id} import=${active.id} name="${dataset?.name ?? ""}"`);
-  }
-}
-
-async function importRowsSupabase(args: Args, parsed: ParsedFile, sourceName: string) {
-  const supabase = createServiceRoleClient();
-  const identity = sourceIdentity(sourceName, parsed.hash);
-  const now = new Date().toISOString();
-  const metrics = await loadRubricMetricsSupabase(supabase, args.domain);
-
-  if ((await prepareSupabaseImportRetry(supabase, identity, parsed.rows.length)) === "skip") return;
-  await assertNoSupabaseActiveImport(supabase, args.domain);
-
-  await assertSupabaseMutation(
-    supabase.from("datasets").insert({
-      id: identity.datasetId,
-      name: args.datasetName,
-      domain: args.domain,
-      status: "importing",
-      schema_fingerprint: parsed.schemaFingerprint,
-      display_config: { listFields, detailFields },
-      required_append_fields: requiredAppendFields(),
-      created_by: null,
-      created_at: now,
-      updated_at: now,
-    }),
-  );
-  await assertSupabaseMutation(
-    supabase.from("dataset_imports").insert({
-      id: identity.importId,
-      dataset_id: identity.datasetId,
-      source_filename: identity.sourceFilename,
-      status: "in_progress",
-      row_count: 0,
-      missing_fields_report: null,
-      created_by: null,
-      created_at: now,
-    }),
-  );
-  await assertSupabaseMutation(
-    supabase.from("annotation_metrics").insert(
-      metrics.map((metric) => ({
-        id: metricId(identity.datasetId, metric.key),
-        dataset_id: identity.datasetId,
-        key: metric.key,
-        label: metric.label,
-        description: metric.description,
-        scale_json: metric.scale,
-        required: metric.required ? 1 : 0,
-        sort_order: metric.sortOrder,
-        created_at: now,
-        updated_at: now,
-      })),
-    ),
-  );
-  console.log(`METRIC_COUNT=${metrics.length}`);
-
-  let inserted = 0;
-  for (const [chunkIndex, chunk] of chunks(parsed.rows, args.chunkSize).entries()) {
-    await assertSupabaseMutation(
-      supabase.from("dataset_rows").insert(
-        chunk.map((row, index) => ({
-          id: `${identity.datasetId}_row_${inserted + index + 1}`,
-          dataset_id: identity.datasetId,
-          import_id: identity.importId,
-          internal_row_id: inserted + index + 1,
-          raw_json: row,
-          source_id: sourceId(row),
-          created_at: now,
-        })),
-      ),
-    );
-    inserted += chunk.length;
-    console.log(`IMPORT_PROGRESS chunk=${chunkIndex + 1} inserted=${inserted}/${parsed.rows.length}`);
-  }
-
-  await assertSupabaseMutation(supabase.from("dataset_imports").update({ status: "completed", row_count: inserted }).eq("id", identity.importId));
-  await assertSupabaseMutation(supabase.from("datasets").update({ status: "ready", updated_at: now }).eq("id", identity.datasetId));
-  console.log(`IMPORT_DONE dataset=${identity.datasetId} import=${identity.importId} rows=${inserted}`);
-}
-
 async function dryRunMetricCount(domain: string): Promise<string> {
-  const databaseUrl = getDatabaseUrl();
-  if (databaseUrl) {
-    const sql = postgres(databaseUrl, { prepare: false });
-    try {
-      const metrics = await loadRubricMetricsPostgres(sql, domain);
-      return String(metrics.length);
-    } finally {
-      await sql.end();
-    }
-  }
-  if (getSupabaseConfig()) {
-    const metrics = await loadRubricMetricsSupabase(createServiceRoleClient(), domain);
+  const databaseUrl = requireDatabaseUrl("verify rubric metric count");
+  const sql = postgres(databaseUrl, { prepare: false });
+  try {
+    const metrics = await loadRubricMetricsPostgres(sql, domain);
     return String(metrics.length);
+  } finally {
+    await sql.end();
   }
-  return "UNVERIFIED_NO_DATABASE_OR_SUPABASE_ENV";
 }
 
 async function main() {

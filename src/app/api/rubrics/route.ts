@@ -9,17 +9,12 @@ import { rubricCriteria, rubrics } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
 import { isDomainKey } from "@/lib/labels";
 import { toMetricResponse } from "@/lib/rubric-metric-adapter";
-
-interface ScaleItem {
-  score: number;
-  label: string;
-  description: string;
-}
+import { defaultPassFailScale, isPassFailScale, type PassFailScaleItem } from "@/lib/rubrics/pass-fail-scale";
 
 interface MetricInput {
   name: string;
   description?: string;
-  scale: ScaleItem[];
+  scale: PassFailScaleItem[];
   required?: boolean;
 }
 
@@ -36,23 +31,19 @@ type RubricTransaction = PgTransaction<
 type Rubric = typeof rubrics.$inferSelect;
 
 function normalizeMetricInput(body: MetricBody) {
-  const metric = Array.isArray(body.scale)
-    ? body
-    : Array.isArray(body.criteria) && body.criteria.length === 1
-      ? body.criteria[0]
-      : null;
+  const metric = Array.isArray(body.criteria) && body.criteria.length === 1
+    ? body.criteria[0]
+    : body;
 
-  if (!metric) {
+  if (Array.isArray(body.criteria) && body.criteria.length !== 1) {
     return { ok: false as const, message: "Mỗi lần chỉ tạo một metric" };
   }
-  if (!metric.name?.trim() || !Array.isArray(metric.scale) || metric.scale.length < 2) {
-    return { ok: false as const, message: "Metric cần tên và ít nhất 2 mức chấm" };
+  if (!metric.name?.trim()) {
+    return { ok: false as const, message: "Metric cần tên" };
   }
 
-  for (const item of metric.scale) {
-    if (!item.label?.trim() || !item.description?.trim()) {
-      return { ok: false as const, message: `Metric "${metric.name}" thiếu label hoặc mô tả cho mức ${item.score}` };
-    }
+  if (Array.isArray(metric.scale) && !isPassFailScale(metric.scale)) {
+    return { ok: false as const, message: "Metric chỉ hỗ trợ scale Failed/Pass" };
   }
 
   return {
@@ -61,11 +52,7 @@ function normalizeMetricInput(body: MetricBody) {
       ...metric,
       name: metric.name.trim(),
       description: metric.description?.trim() ?? "",
-      scale: metric.scale.map((item, index) => ({
-        score: index + 1,
-        label: item.label.trim(),
-        description: item.description.trim(),
-      })),
+      scale: defaultPassFailScale(),
     },
   };
 }
