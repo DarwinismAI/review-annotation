@@ -9,6 +9,9 @@ import { requireAdmin } from "@/lib/auth-middleware";
 import { buildMetricKey, planBalancedAssignments } from "@/lib/datasets/assignment";
 
 const ASSIGNMENT_INSERT_CHUNK_SIZE = 1000;
+type AssignmentMetricRecord = { id: string };
+type ActiveAnnotatorRecord = { userId: string };
+type AssignmentRowRecord = { id: string };
 
 const assignRequestSchema = z.object({
   scope: z.union([
@@ -36,25 +39,32 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
     return NextResponse.json({ error: "DATASET_NOT_READY" }, { status: 409 });
   }
 
-  const metrics = await db
+  const metrics: AssignmentMetricRecord[] = await db
     .select({ id: annotationMetrics.id })
     .from(annotationMetrics)
     .where(eq(annotationMetrics.datasetId, datasetId))
     .orderBy(asc(annotationMetrics.sortOrder), asc(annotationMetrics.id));
-  const metricIds = metrics.map((metric: any) => metric.id);
+  const allMetricIds = metrics.map((metric) => metric.id);
+  const requestedMetricIds = parsed.data.metricIds;
+  const metricIds = requestedMetricIds
+    ? allMetricIds.filter((metricId) => requestedMetricIds.includes(metricId))
+    : allMetricIds;
   if (metricIds.length === 0) {
     return NextResponse.json({ error: "NO_METRICS" }, { status: 400 });
   }
+  if (requestedMetricIds && metricIds.length !== requestedMetricIds.length) {
+    return NextResponse.json({ error: "INVALID_METRICS", message: "Metric không thuộc dataset này" }, { status: 400 });
+  }
 
-  const activeAnnotators = await db
+  const activeAnnotators: ActiveAnnotatorRecord[] = await db
     .select({ userId: profiles.id })
     .from(expertProfiles)
     .innerJoin(profiles, eq(expertProfiles.userId, profiles.id))
     .where(and(eq(expertProfiles.status, "active"), inArray(profiles.id, parsed.data.annotatorIds)));
 
-  const annotatorIds = activeAnnotators.map((annotator: any) => annotator.userId);
+  const annotatorIds = activeAnnotators.map((annotator) => annotator.userId);
   if (annotatorIds.length < parsed.data.targetOverlap) {
-    return NextResponse.json({ error: "NOT_ENOUGH_ANNOTATORS" }, { status: 400 });
+    return NextResponse.json({ error: "NOT_ENOUGH_ANNOTATORS", message: "Số annotator active không đủ overlap đã chọn" }, { status: 400 });
   }
 
   const rowQuery =
@@ -66,7 +76,7 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
           .where(and(eq(datasetRows.datasetId, datasetId), inArray(datasetRows.id, parsed.data.scope.rowIds)))
           .orderBy(asc(datasetRows.internalRowId));
   const rows = await rowQuery;
-  const rowIds = rows.map((row: any) => row.id);
+  const rowIds = (rows as AssignmentRowRecord[]).map((row) => row.id);
 
   const metricKey = buildMetricKey(metricIds);
   const existingAssignments = await db
@@ -89,11 +99,16 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
   });
 
   if (!plan.ok) {
-    return NextResponse.json({ error: plan.reason }, { status: 400 });
+    return NextResponse.json({ error: plan.reason, message: "Không đủ annotator để phân task theo overlap" }, { status: 400 });
   }
 
   if (plan.assignments.length === 0) {
-    return NextResponse.json({ assignmentRunId: null, createdAssignments: 0, skippedRows: plan.skippedRowIds.length });
+    return NextResponse.json({
+      assignmentRunId: null,
+      createdAssignments: 0,
+      skippedRows: plan.skippedRowIds.length,
+      message: "Không tạo task mới: các dòng đã đủ overlap hoặc vượt giới hạn số câu / annotator",
+    });
   }
 
   const assignmentRunId = createId();
@@ -136,5 +151,6 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
     assignmentRunId,
     createdAssignments: plan.assignments.length,
     skippedRows: plan.skippedRowIds.length,
+    message: `Đã tạo ${plan.assignments.length} task${plan.skippedRowIds.length > 0 ? `, bỏ qua ${plan.skippedRowIds.length} dòng` : ""}`,
   });
 });

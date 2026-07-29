@@ -40,11 +40,14 @@ export function planBalancedAssignments(input: {
   }
   const assignments: PlannedAssignment[] = [];
   const skippedRowIds: string[] = [];
+  const existingByRow = new Map<string, ExistingAssignment[]>();
+  for (const assignment of input.existingAssignments) {
+    if (assignment.metricKey !== metricKey) continue;
+    existingByRow.set(assignment.rowId, [...(existingByRow.get(assignment.rowId) ?? []), assignment]);
+  }
 
   for (const rowId of input.rowIds) {
-    const existingForRow = input.existingAssignments.filter(
-      (assignment) => assignment.rowId === rowId && assignment.metricKey === metricKey,
-    );
+    const existingForRow = existingByRow.get(rowId) ?? [];
     const assignedAnnotators = new Set(existingForRow.map((assignment) => assignment.annotatorId));
     const missing = input.targetOverlap - existingForRow.length;
 

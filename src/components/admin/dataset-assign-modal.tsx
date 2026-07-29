@@ -35,6 +35,8 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
   const [annotators, setAnnotators] = useState<ActiveAnnotator[]>([]);
   const [annotatorIds, setAnnotatorIds] = useState<string[]>([]);
   const [status, setStatus] = useState("");
+  const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+  const [assigning, setAssigning] = useState(false);
   const targetOverlapRef = useRef(targetOverlap);
 
   useEffect(() => {
@@ -56,7 +58,10 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
           return currentValid.length > 0 ? currentValid : data.slice(0, targetOverlapRef.current).map((item) => item.userId);
         });
       })
-      .catch(() => setStatus("Không tải được danh sách annotator"));
+      .catch(() => {
+        setStatusTone("error");
+        setStatus("Không tải được danh sách annotator");
+      });
     return () => {
       cancelled = true;
     };
@@ -77,25 +82,40 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
 
   async function assign() {
     setStatus("");
+    setStatusTone("neutral");
+    setAssigning(true);
     const body = {
       scope: scope === "all" ? { type: "all" as const } : { type: "selected" as const, rowIds: selectedRowIds },
       targetOverlap,
       maxRowsPerAnnotator: maxRowsPerAnnotator || undefined,
+      metricIds: metrics.map((metric) => metric.id),
       annotatorIds,
     };
-    const response = await fetch(`/api/datasets/${datasetId}/assign`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatus(payload.error ?? "Assign thất bại");
-      return;
+    try {
+      const response = await fetch(`/api/datasets/${datasetId}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setStatusTone("error");
+        setStatus(payload.message ?? payload.error ?? "Assign thất bại");
+        return;
+      }
+      setStatusTone(payload.createdAssignments > 0 ? "success" : "neutral");
+      setStatus(payload.message ?? `Đã tạo ${payload.createdAssignments} task`);
+      onAssigned();
+    } catch {
+      setStatusTone("error");
+      setStatus("Không kết nối được API assign");
+    } finally {
+      setAssigning(false);
     }
-    setStatus(`Đã tạo ${payload.createdAssignments} task`);
-    onAssigned();
   }
+
+  const statusClassName =
+    statusTone === "error" ? "text-red-600" : statusTone === "success" ? "text-green-700" : "text-slate-600";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,6 +136,9 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
                 Cả dataset
               </Button>
             </div>
+            {scope === "all" && selectedRowIds.length > 0 && (
+              <div className="text-xs text-amber-700">Đang giao cả dataset, không chỉ {selectedRowIds.length} dòng đã chọn.</div>
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
@@ -167,16 +190,16 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
             </div>
           </div>
 
-          {status && <div className="text-sm text-slate-600">{status}</div>}
+          {status && <div className={`text-sm ${statusClassName}`}>{status}</div>}
         </div>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Hủy
           </Button>
-          <Button type="button" onClick={assign} disabled={metrics.length === 0 || annotatorIds.length < targetOverlap || (scope === "selected" && selectedRowIds.length === 0)}>
+          <Button type="button" onClick={assign} disabled={assigning || metrics.length === 0 || annotatorIds.length < targetOverlap || (scope === "selected" && selectedRowIds.length === 0)}>
             <Send className="h-4 w-4" />
-            Xác nhận giao
+            {assigning ? "Đang giao..." : "Xác nhận giao"}
           </Button>
         </DialogFooter>
       </DialogContent>
