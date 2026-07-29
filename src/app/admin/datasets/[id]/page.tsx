@@ -41,7 +41,7 @@ export default function DatasetDetailPage() {
     try {
       const [detailResponse, rowsResponse] = await Promise.all([
         fetch(`/api/datasets/${datasetId}`, { cache: "no-store" }),
-        fetch(`/api/datasets/${datasetId}/rows?pageSize=200`, { cache: "no-store" }),
+        fetch(`/api/datasets/${datasetId}/rows?pageSize=200&fields=detail`, { cache: "no-store" }),
       ]);
       const [detailPayload, rowsPayload] = await Promise.all([detailResponse.json(), rowsResponse.json()]);
       if (!detailResponse.ok) throw new Error(detailPayload.error ?? "Không tải được dataset");
@@ -74,7 +74,7 @@ export default function DatasetDetailPage() {
           </div>
           <div className="h-9 w-24 rounded bg-slate-100" />
         </div>
-        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             <div className="h-4 w-20 rounded bg-slate-100" />
             <div className="rounded-md border border-slate-200 bg-white p-3">
@@ -129,7 +129,7 @@ export default function DatasetDetailPage() {
       </div>
       {!datasetReady && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Dataset đang import, chưa thể assign task.</div>}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase text-slate-500">Rows</h2>
@@ -137,7 +137,7 @@ export default function DatasetDetailPage() {
           </div>
           <DatasetRowTable
             rows={rows}
-            listFields={detail.dataset.displayConfig.listFields}
+            listFields={detail.dataset.displayConfig.detailFields}
             selectedRowIds={selectedRowIds}
             onSelectedRowIdsChange={setSelectedRowIds}
           />

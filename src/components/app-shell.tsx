@@ -50,7 +50,7 @@ export async function AppShell({ children, variant }: AppShellProps) {
             role: session.role,
           }}
         />
-        <main className="min-w-0 flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 lg:pb-6">
+        <main className="min-w-0 flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-[1800px] w-full mx-auto pb-20 lg:pb-6">
           {children}
         </main>
       </div>

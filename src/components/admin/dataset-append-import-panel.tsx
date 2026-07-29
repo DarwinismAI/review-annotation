@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { collectExtraFieldsResponsive, parseDatasetFile, validateAppendRowsResponsive } from "@/lib/datasets/client-file-import";
+import { CLIENT_IMPORT_CHUNK_SIZE, MAX_DATASET_IMPORT_ROWS } from "@/lib/datasets/import-limits";
 import { type JsonRecord } from "@/lib/datasets/import-validation";
 
-const CLIENT_IMPORT_CHUNK_SIZE = 500;
 type StatusKind = "idle" | "progress" | "success" | "error";
 
 interface MissingField {
@@ -33,6 +33,7 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
   const [status, setStatus] = useState("");
   const [statusKind, setStatusKind] = useState<StatusKind>("idle");
+  const [importing, setImporting] = useState(false);
 
   function showStatus(message: string, kind: StatusKind) {
     setStatus(message);
@@ -54,7 +55,7 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
 
     let parsedRows: JsonRecord[];
     try {
-      parsedRows = await parseDatasetFile(file);
+      parsedRows = await parseDatasetFile(file, { maxRows: MAX_DATASET_IMPORT_ROWS });
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Import không hợp lệ", "error");
       return;
@@ -79,32 +80,39 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
   }
 
   async function importRows() {
-    if (!file || rows.length === 0) return;
+    if (!file || rows.length === 0 || importing) return;
 
+    setImporting(true);
     let importId = "";
-    for (let index = 0; index < rows.length; index += CLIENT_IMPORT_CHUNK_SIZE) {
-      const chunk = rows.slice(index, index + CLIENT_IMPORT_CHUNK_SIZE);
-      const finalChunk = index + chunk.length >= rows.length;
-      const response = await fetch(`/api/datasets/${datasetId}/imports`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, rows: chunk, importId: importId || undefined, totalRows: rows.length, finalChunk }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        showStatus(payload.message ?? payload.error ?? `Import thất bại tại dòng ${index + 1}`, "error");
-        setMissingFields(payload.missingFields ?? []);
-        return;
+    try {
+      for (let index = 0; index < rows.length; index += CLIENT_IMPORT_CHUNK_SIZE) {
+        const chunk = rows.slice(index, index + CLIENT_IMPORT_CHUNK_SIZE);
+        const finalChunk = index + chunk.length >= rows.length;
+        const response = await fetch(`/api/datasets/${datasetId}/imports`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename, rows: chunk, importId: importId || undefined, totalRows: rows.length, finalChunk }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          showStatus(payload.message ?? payload.error ?? `Import thất bại tại dòng ${index + 1}`, "error");
+          setMissingFields(payload.missingFields ?? []);
+          return;
+        }
+        importId = payload.importId;
+        showStatus(`Đã import ${Math.min(index + chunk.length, rows.length)}/${rows.length} dòng`, "progress");
       }
-      importId = payload.importId;
-      showStatus(`Đã import ${Math.min(index + chunk.length, rows.length)}/${rows.length} dòng`, "progress");
+      showStatus(`Đã thêm ${rows.length} dòng`, "success");
+      setFile(null);
+      setRows([]);
+      setFilename("");
+      setRowCount(null);
+      onImported();
+    } catch (error) {
+      showStatus(error instanceof Error ? error.message : "Import thất bại, vui lòng thử lại", "error");
+    } finally {
+      setImporting(false);
     }
-    showStatus(`Đã thêm ${rows.length} dòng`, "success");
-    setFile(null);
-    setRows([]);
-    setFilename("");
-    setRowCount(null);
-    onImported();
   }
 
   return (
@@ -112,7 +120,7 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Append dataset</h2>
-          <p className="text-xs text-slate-500">File mới được thừa field, nhưng không được thiếu field đã chọn để hiển thị.</p>
+          <p className="text-xs text-slate-500">File mới được thừa field, không được thiếu field hiển thị. Tối đa {MAX_DATASET_IMPORT_ROWS.toLocaleString("vi-VN")} dòng/lần.</p>
         </div>
         <Upload className="h-4 w-4 text-slate-400" />
       </div>
@@ -143,8 +151,8 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
           ))}
         </div>
       )}
-      <Button type="button" onClick={importRows} disabled={!file || missingFields.length > 0 || rowCount === null}>
-        Import thêm dòng
+      <Button type="button" onClick={importRows} disabled={importing || !file || missingFields.length > 0 || rowCount === null}>
+        {importing ? "Đang import..." : "Import thêm dòng"}
       </Button>
     </div>
   );

@@ -1,0 +1,2 @@
+export const CLIENT_IMPORT_CHUNK_SIZE = 500;
+export const MAX_DATASET_IMPORT_ROWS = 5000;

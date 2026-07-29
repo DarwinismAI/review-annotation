@@ -8,15 +8,27 @@ import {
   type MissingFieldReport,
 } from "./import-validation";
 
+interface ParseDatasetFileOptions {
+  maxRows?: number;
+}
+
 function yieldToBrowser() {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, 0);
   });
 }
 
-export async function parseDatasetFile(file: File): Promise<JsonRecord[]> {
+function assertRowLimit(rows: JsonRecord[], maxRows?: number) {
+  if (maxRows && rows.length > maxRows) {
+    throw new Error(`Một lần import tối đa ${maxRows.toLocaleString("vi-VN")} dòng`);
+  }
+}
+
+export async function parseDatasetFile(file: File, options: ParseDatasetFileOptions = {}): Promise<JsonRecord[]> {
   if (!isJsonlFile(file.name)) {
-    return parseDatasetRows(await file.text(), { filename: file.name });
+    const rows = parseDatasetRows(await file.text(), { filename: file.name });
+    assertRowLimit(rows, options.maxRows);
+    return rows;
   }
 
   const reader = file.stream().getReader();
@@ -35,6 +47,7 @@ export async function parseDatasetFile(file: File): Promise<JsonRecord[]> {
     for (const line of lines) {
       lineNumber += 1;
       appendJsonlLine(rows, line, lineNumber);
+      assertRowLimit(rows, options.maxRows);
       if (rows.length > 0 && rows.length % 500 === 0) await yieldToBrowser();
     }
   }
@@ -43,6 +56,7 @@ export async function parseDatasetFile(file: File): Promise<JsonRecord[]> {
   if (buffer.trim()) {
     lineNumber += 1;
     appendJsonlLine(rows, buffer, lineNumber);
+    assertRowLimit(rows, options.maxRows);
   }
 
   if (rows.length === 0) throw new Error("Dataset upload is empty");

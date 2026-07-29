@@ -6,6 +6,7 @@ interface JsonFieldValueProps {
   value: unknown;
   maxLength?: number;
   className?: string;
+  wrap?: boolean;
 }
 
 function stringifyValue(value: unknown): string {
@@ -19,12 +20,19 @@ function stringifyValue(value: unknown): string {
   }
 }
 
-export function JsonFieldValue({ value, maxLength = 120, className }: JsonFieldValueProps) {
+export function JsonFieldValue({ value, maxLength = 120, className, wrap = false }: JsonFieldValueProps) {
   const text = stringifyValue(value);
   const clipped = text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 
   return (
-    <span className={cn("block max-w-[360px] truncate text-sm text-slate-700", className)} title={text}>
+    <span
+      className={cn(
+        "block text-sm text-slate-700",
+        wrap ? "max-w-none whitespace-normal break-words leading-5" : "max-w-[360px] truncate",
+        className,
+      )}
+      title={text}
+    >
       {clipped}
     </span>
   );

@@ -25,6 +25,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const { searchParams } = new URL(req.url);
   const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50), 1), 200);
+  const fieldMode = searchParams.get("fields") === "detail" ? "detail" : "list";
 
   const dataset = (await db.select().from(datasets).where(eq(datasets.id, datasetId)))[0];
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
@@ -79,6 +80,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   }
 
   const displayConfig = dataset.displayConfig as { listFields: string[]; detailFields: string[] };
+  const projectedFields = fieldMode === "detail" ? displayConfig.detailFields : displayConfig.listFields;
 
   return NextResponse.json({
     rows: pageRows.map((row: any) => {
@@ -88,7 +90,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
       return {
         id: row.id,
         internalRowId: row.internalRowId,
-        listFields: projectFields(normalizeJson(row.rawJson), displayConfig.listFields),
+        listFields: projectFields(normalizeJson(row.rawJson), projectedFields),
         ...progress,
         agreement: computeAgreement(resultsByRow.get(row.id) ?? []),
       };

@@ -6,6 +6,40 @@ import { createClient } from "@libsql/client";
 
 const DB_PATH = process.env.LOCAL_DB_PATH ?? "file:./local.db";
 
+const REVIEW_MEMBERS = [
+  { id: "00000000-0000-0000-0000-000000000201", email: "v.kietthm2@vinsmartfuture.tech", name: "Trương Hầu Minh Kiệt", role: "admin" },
+  { id: "00000000-0000-0000-0000-000000000202", email: "v.khanhnt49@vinsmartfuture.tech", name: "Nguyễn Tuấn Khanh", role: "admin" },
+  { id: "00000000-0000-0000-0000-000000000203", email: "v.minhlh18@vinsmartfuture.tech", name: "Lê Hoàng Minh", role: "annotator" },
+  { id: "00000000-0000-0000-0000-000000000204", email: "v.anhpt246@vinsmartfuture.tech", name: "Phạm Tuấn Anh", role: "annotator" },
+  { id: "00000000-0000-0000-0000-000000000205", email: "v.huynh39@vinsmartfuture.tech", name: "Nguyễn Hữu Huy", role: "annotator" },
+] as const;
+
+const SAFETY_RUBRIC_METRICS = [
+  {
+    rubricId: "rubric-safety-policy-violation",
+    criterionId: "criterion-safety-policy-violation",
+    name: "Vi phạm chính sách",
+    description: "Nội dung có vi phạm chính sách an toàn - tuân thủ hay không.",
+  },
+  {
+    rubricId: "rubric-safety-implicit-risk",
+    criterionId: "criterion-safety-implicit-risk",
+    name: "Mức độ ẩn ý",
+    description: "Nội dung có rủi ro ẩn ý cần chặn hoặc đánh dấu hay không.",
+  },
+  {
+    rubricId: "rubric-safety-guideline-clarity",
+    criterionId: "criterion-safety-guideline-clarity",
+    name: "Độ rõ của guideline",
+    description: "Guideline áp dụng có đủ rõ để quyết định nhãn hay không.",
+  },
+] as const;
+
+const PASS_FAIL_SCALE = JSON.stringify([
+  { score: 1, label: "Failed", description: "Không đạt metric này." },
+  { score: 2, label: "Pass", description: "Đạt metric này." },
+]);
+
 const SQL = `
 CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
@@ -328,6 +362,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS annotation_results_assignment_metric_unique ON
 CREATE INDEX IF NOT EXISTS annotation_results_row_metric_idx ON annotation_results(row_id, metric_id);
 `;
 
+async function seedReviewMembers(client: ReturnType<typeof createClient>, nowIso: string, nowMs: number) {
+  for (const member of REVIEW_MEMBERS) {
+    await client.execute({
+      sql: `INSERT INTO profiles (id, email, role, name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(email) DO UPDATE SET role = excluded.role, name = excluded.name, updated_at = excluded.updated_at`,
+      args: [member.id, member.email, member.role, member.name, nowIso, nowIso],
+    });
+
+    if (member.role !== "annotator") {
+      await client.execute({ sql: `DELETE FROM expert_profiles WHERE user_id = ?`, args: [member.id] });
+      await client.execute({ sql: `DELETE FROM expert_domains WHERE user_id = ?`, args: [member.id] });
+      continue;
+    }
+
+    await client.execute({
+      sql: `INSERT INTO expert_profiles
+            (id, user_id, domain, status, invite_token, invite_expires_at, invited_at, activated_at, created_at, updated_at)
+            VALUES (?, ?, 'safety_compliance', 'active', NULL, NULL, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET domain = excluded.domain, status = excluded.status, activated_at = excluded.activated_at, updated_at = excluded.updated_at`,
+      args: [`review-member-profile-${member.id.slice(-3)}`, member.id, nowMs, nowMs, nowMs, nowMs],
+    });
+    await client.execute({ sql: `DELETE FROM expert_domains WHERE user_id = ? AND domain = 'safety_compliance'`, args: [member.id] });
+    await client.execute({
+      sql: `INSERT INTO expert_domains (id, user_id, domain, created_at) VALUES (?, ?, 'safety_compliance', ?)`,
+      args: [`review-member-domain-${member.id.slice(-3)}`, member.id, nowMs],
+    });
+  }
+}
+
+async function seedSafetyComplianceRubrics(client: ReturnType<typeof createClient>, adminId: string, nowMs: number) {
+  for (let index = 0; index < SAFETY_RUBRIC_METRICS.length; index += 1) {
+    const metric = SAFETY_RUBRIC_METRICS[index];
+    await client.execute({ sql: `DELETE FROM rubric_criteria WHERE id = ? OR rubric_id = ?`, args: [metric.criterionId, metric.rubricId] });
+    await client.execute({ sql: `DELETE FROM rubrics WHERE id = ?`, args: [metric.rubricId] });
+    await client.execute({
+      sql: `INSERT INTO rubrics (id, name, domain, created_by, created_at, updated_at)
+            VALUES (?, ?, 'safety_compliance', ?, ?, ?)`,
+      args: [metric.rubricId, metric.name, adminId, nowMs + index, nowMs + index],
+    });
+    await client.execute({
+      sql: `INSERT INTO rubric_criteria
+            (id, rubric_id, name, description, scale, required, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?)`,
+      args: [metric.criterionId, metric.rubricId, metric.name, metric.description, PASS_FAIL_SCALE, nowMs + index, nowMs + index],
+    });
+  }
+}
+
 async function main() {
   console.log(`Creating SQLite DB: ${DB_PATH}`);
   const client = createClient({ url: DB_PATH });
@@ -370,6 +453,7 @@ PRAGMA foreign_keys=ON;`);
 
   // Seed local admin users
   const now = new Date().toISOString();
+  const nowMs = Date.now();
   const adminId = "00000000-0000-0000-0000-000000000001";
   await client.execute({
     sql: `INSERT OR IGNORE INTO profiles (id, email, role, name, created_at, updated_at)
@@ -401,7 +485,10 @@ PRAGMA foreign_keys=ON;`);
     });
   }
 
-  console.log("✓ Database ready. Admin: admin@review-annotation.local · Superadmin: superadmin@review-annotation.local · 3 annotators");
+  await seedReviewMembers(client, now, nowMs);
+  await seedSafetyComplianceRubrics(client, adminId, nowMs);
+
+  console.log("✓ Database ready. Admin: admin@review-annotation.local · Superadmin: superadmin@review-annotation.local · 6 annotators · 2 review admins");
   client.close();
 }
 

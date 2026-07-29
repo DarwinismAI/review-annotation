@@ -31,6 +31,8 @@ interface DatasetRowTableProps {
 }
 
 export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRowIdsChange }: DatasetRowTableProps) {
+  const tableMinWidth = `${Math.max(960, 360 + listFields.length * 320)}px`;
+
   function toggle(id: string) {
     onSelectedRowIdsChange(selectedRowIds.includes(id) ? selectedRowIds.filter((item) => item !== id) : [...selectedRowIds, id]);
   }
@@ -41,7 +43,7 @@ export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRo
 
   return (
     <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-      <Table>
+      <Table className="table-auto" style={{ minWidth: tableMinWidth }}>
         <TableHeader>
           <TableRow>
             <TableHead className="w-9">
@@ -49,12 +51,14 @@ export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRo
             </TableHead>
             <TableHead className="w-16">ID</TableHead>
             {listFields.map((field) => (
-              <TableHead key={field}>{field}</TableHead>
+              <TableHead key={field} className="min-w-[320px]">
+                {field}
+              </TableHead>
             ))}
-            <TableHead>Completed</TableHead>
-            <TableHead>Annotated by</TableHead>
-            <TableHead>Agreement</TableHead>
-            <TableHead>Overlap</TableHead>
+            <TableHead className="w-24">Completed</TableHead>
+            <TableHead className="w-28">Annotated by</TableHead>
+            <TableHead className="w-28">Agreement</TableHead>
+            <TableHead className="w-24">Overlap</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -65,8 +69,8 @@ export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRo
               </TableCell>
               <TableCell className="text-slate-600">{row.internalRowId}</TableCell>
               {listFields.map((field) => (
-                <TableCell key={field}>
-                  <JsonFieldValue value={row.listFields[field]} />
+                <TableCell key={field} className="align-top">
+                  <JsonFieldValue value={row.listFields[field]} maxLength={220} wrap />
                 </TableCell>
               ))}
               <TableCell>{row.completedCount}</TableCell>

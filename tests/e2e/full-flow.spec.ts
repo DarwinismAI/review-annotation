@@ -99,7 +99,7 @@ test.describe.serial("local-dev review annotation flows", () => {
     await page.goto("/admin/members");
     await expect(page.getByRole("heading", { name: "Thành viên" })).toBeVisible();
     await expect(page.getByText("Superadmin", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Quản trị viên")).toBeVisible();
+    await expect(page.getByText("Quản trị viên").first()).toBeVisible();
     await expect(page.getByText("Người gán nhãn").first()).toBeVisible();
     await assertPageHealth(page, testInfo, "superadmin-members-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
@@ -173,7 +173,26 @@ test.describe.serial("local-dev review annotation flows", () => {
       },
     });
     expect(createResponse.ok()).toBeTruthy();
-    const { datasetId } = await createResponse.json();
+    const partialCreatePayload = await createResponse.json();
+    const datasetId = partialCreatePayload.datasetId;
+
+    const duplicateCreateResponse = await page.request.post("/api/datasets", {
+      data: {
+        name: `Partial Import Guard ${RUN_ID}`,
+        domain: "safety_compliance",
+        sourceFilename: "partial-import.jsonl",
+        rows: [INITIAL_ROWS[0]],
+        totalRows: 2,
+        schemaFingerprint: [
+          { path: "input", type: "string", sample: INITIAL_ROWS[0].input },
+          { path: "output", type: "string", sample: INITIAL_ROWS[0].output },
+        ],
+        listFields: ["input"],
+        detailFields: ["input", "output"],
+      },
+    });
+    expect(duplicateCreateResponse.status()).toBe(409);
+    expect(await duplicateCreateResponse.json()).toMatchObject({ error: "DATASET_IMPORT_IN_PROGRESS" });
 
     const annotatorsResponse = await page.request.get("/api/annotators?status=active");
     expect(annotatorsResponse.ok()).toBeTruthy();
@@ -193,6 +212,18 @@ test.describe.serial("local-dev review annotation flows", () => {
     });
     expect(assignResponse.status()).toBe(409);
     expect(await assignResponse.json()).toMatchObject({ error: "DATASET_NOT_READY" });
+
+    const completeFirstImportResponse = await page.request.post(`/api/datasets/${datasetId}/imports`, {
+      data: {
+        filename: "partial-import.jsonl",
+        rows: [INITIAL_ROWS[1]],
+        importId: partialCreatePayload.importId,
+        totalRows: 2,
+        finalChunk: true,
+      },
+    });
+    expect(completeFirstImportResponse.ok()).toBeTruthy();
+    expect(await completeFirstImportResponse.json()).toMatchObject({ status: "ready" });
 
     const readyCreateResponse = await page.request.post("/api/datasets", {
       data: {
@@ -221,7 +252,8 @@ test.describe.serial("local-dev review annotation flows", () => {
       },
     });
     expect(appendResponse.ok()).toBeTruthy();
-    expect(await appendResponse.json()).toMatchObject({ status: "importing" });
+    const partialAppendPayload = await appendResponse.json();
+    expect(partialAppendPayload).toMatchObject({ status: "importing" });
 
     const readyDetailResponse = await page.request.get(`/api/datasets/${readyDatasetId}`);
     const readyMetricIds = ((await readyDetailResponse.json()).metrics as Array<{ id: string }>).map((metric) => metric.id);
@@ -235,6 +267,18 @@ test.describe.serial("local-dev review annotation flows", () => {
     });
     expect(partialAppendAssignResponse.status()).toBe(409);
     expect(await partialAppendAssignResponse.json()).toMatchObject({ error: "DATASET_NOT_READY" });
+
+    const completeAppendResponse = await page.request.post(`/api/datasets/${readyDatasetId}/imports`, {
+      data: {
+        filename: "partial-append.jsonl",
+        rows: [buildAppendRow(["input", "output"])],
+        importId: partialAppendPayload.importId,
+        totalRows: 2,
+        finalChunk: true,
+      },
+    });
+    expect(completeAppendResponse.ok()).toBeTruthy();
+    expect(await completeAppendResponse.json()).toMatchObject({ status: "ready" });
   });
 
   test("admin can create a dataset, choose display fields, append rows, and assign tasks", async ({ page }, testInfo) => {
@@ -252,6 +296,7 @@ test.describe.serial("local-dev review annotation flows", () => {
     await expect(page.getByText("input").first()).toBeVisible();
     await expect(page.getByText("label.policy").first()).toBeVisible();
     await expect(page.getByText("Scale: Failed \/ Pass").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Thêm metric" })).toHaveCount(0);
     await assertPageHealth(page, testInfo, "admin-dataset-new-desktop");
     const createResponsePromise = page.waitForResponse((response) => response.url().endsWith("/api/datasets") && response.request().method() === "POST");
     await page.getByRole("button", { name: "Tạo dataset" }).click();

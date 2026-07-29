@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   webServer: {
     command:
-      "mkdir -p .tmp && LOCAL_DB_PATH=file:.tmp/playwright-full-flow.db pnpm exec tsx scripts/seed-local.ts && LOCAL_DB_PATH=file:.tmp/playwright-full-flow.db ADMIN_PASSWORD=local-dev-password EXPERT_PASSWORD=local-dev-password SUPERADMIN_PASSWORD=local-dev-password pnpm dev --port 3101",
+      "mkdir -p .tmp && rm -f .tmp/playwright-full-flow.db .tmp/playwright-full-flow.db-shm .tmp/playwright-full-flow.db-wal && LOCAL_DB_PATH=file:.tmp/playwright-full-flow.db pnpm exec tsx scripts/seed-local.ts && LOCAL_DB_PATH=file:.tmp/playwright-full-flow.db ADMIN_PASSWORD=local-dev-password EXPERT_PASSWORD=local-dev-password SUPERADMIN_PASSWORD=local-dev-password pnpm dev --port 3101",
     url: "http://127.0.0.1:3101/login",
     timeout: 120_000,
     reuseExistingServer: false,

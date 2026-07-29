@@ -7,33 +7,6 @@ export interface MetricConfigInput {
   sortOrder: number;
 }
 
-export const SAFETY_COMPLIANCE_DEFAULT_METRICS: MetricConfigInput[] = [
-  {
-    key: "policy_violation",
-    label: "Vi phạm chính sách",
-    description: "Nội dung có vi phạm chính sách an toàn - tuân thủ hay không.",
-    scale: { values: ["Failed", "Pass"] },
-    required: true,
-    sortOrder: 0,
-  },
-  {
-    key: "implicit_risk",
-    label: "Mức độ ẩn ý",
-    description: "Nội dung có rủi ro ẩn ý cần chặn hoặc đánh dấu hay không.",
-    scale: { values: ["Failed", "Pass"] },
-    required: true,
-    sortOrder: 1,
-  },
-  {
-    key: "guideline_clarity",
-    label: "Độ rõ của guideline",
-    description: "Guideline áp dụng có đủ rõ để quyết định nhãn hay không.",
-    scale: { values: ["Failed", "Pass"] },
-    required: true,
-    sortOrder: 2,
-  },
-];
-
 export function validateMetricConfig(metrics: MetricConfigInput[]) {
   const keys = new Set<string>();
 

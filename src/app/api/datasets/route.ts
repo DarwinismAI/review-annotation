@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { and, count, desc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationMetrics, datasetImports, datasetRows, datasets } from "@/db/datasets";
+import { rubricCriteria, rubrics } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
 import {
   computeRequiredAppendFields,
@@ -11,16 +12,9 @@ import {
   validateDisplayFields,
   type JsonRecord,
 } from "@/lib/datasets/import-validation";
-import { validateMetricConfig } from "@/lib/datasets/metrics";
-
-const metricSchema = z.object({
-  key: z.string().min(1),
-  label: z.string().min(1),
-  description: z.string().optional(),
-  scale: z.object({ values: z.array(z.string().min(1)).min(2) }),
-  required: z.boolean().default(true),
-  sortOrder: z.number().int().default(0),
-});
+import { MAX_DATASET_IMPORT_ROWS } from "@/lib/datasets/import-limits";
+import { lockDatasetImportDomain } from "@/lib/datasets/import-locks";
+import { validateMetricConfig, type MetricConfigInput } from "@/lib/datasets/metrics";
 
 const createDatasetSchema = z.object({
   name: z.string().min(1),
@@ -31,7 +25,6 @@ const createDatasetSchema = z.object({
   schemaFingerprint: z.array(z.object({ path: z.string(), type: z.string(), sample: z.unknown() })).optional(),
   listFields: z.array(z.string()).min(1),
   detailFields: z.array(z.string()).min(1),
-  metrics: z.array(metricSchema).min(1),
 });
 
 const ROW_INSERT_CHUNK_SIZE = 500;
@@ -47,6 +40,69 @@ function chunkRows<T>(rows: T[], size: number): T[][] {
     chunks.push(rows.slice(index, index + size));
   }
   return chunks;
+}
+
+function importRowCount(rows: JsonRecord[], totalRows?: number) {
+  return totalRows ?? rows.length;
+}
+
+async function findActiveImport(domain: string) {
+  const [activeImport] = await db
+    .select({
+      datasetId: datasets.id,
+      datasetName: datasets.name,
+      sourceFilename: datasetImports.sourceFilename,
+    })
+    .from(datasetImports)
+    .innerJoin(datasets, eq(datasetImports.datasetId, datasets.id))
+    .where(and(eq(datasets.domain, domain), eq(datasets.status, "importing"), eq(datasetImports.status, "in_progress")));
+  return activeImport;
+}
+
+function activeImportPayload(activeImport: Awaited<ReturnType<typeof findActiveImport>>) {
+  return {
+    error: "DATASET_IMPORT_IN_PROGRESS",
+    message: `Dataset "${activeImport?.datasetName}" đang import. Chờ hoàn tất trước khi import tiếp.`,
+    datasetId: activeImport?.datasetId,
+  };
+}
+
+function scaleValues(rawScale: string): string[] {
+  try {
+    const parsed = JSON.parse(rawScale) as Array<{ label?: unknown }>;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => (typeof item.label === "string" ? item.label.trim() : "")).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function getDatasetMetricsFromRubrics(domain: string): Promise<MetricConfigInput[]> {
+  const rows = await db
+    .select({
+      rubricId: rubrics.id,
+      rubricName: rubrics.name,
+      criterionId: rubricCriteria.id,
+      criterionName: rubricCriteria.name,
+      description: rubricCriteria.description,
+      scale: rubricCriteria.scale,
+      required: rubricCriteria.required,
+      createdAt: rubrics.createdAt,
+      sortOrder: rubricCriteria.sortOrder,
+    })
+    .from(rubrics)
+    .innerJoin(rubricCriteria, eq(rubricCriteria.rubricId, rubrics.id))
+    .where(eq(rubrics.domain, domain))
+    .orderBy(asc(rubrics.createdAt), asc(rubrics.id), asc(rubricCriteria.sortOrder));
+
+  return rows.map((row: any, index: number): MetricConfigInput => ({
+    key: row.criterionId,
+    label: row.rubricName || row.criterionName,
+    description: row.description ?? null,
+    scale: { values: scaleValues(row.scale) },
+    required: Boolean(row.required),
+    sortOrder: index,
+  }));
 }
 
 export const GET = requireAdmin(async (req: NextRequest) => {
@@ -148,9 +204,26 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
     return NextResponse.json({ error: "MISSING_DISPLAY_FIELDS", missingFields: displayValidation.missingFields }, { status: 400 });
   }
 
-  const metricValidation = validateMetricConfig(parsed.data.metrics);
+  const totalImportRows = importRowCount(parsed.data.rows, parsed.data.totalRows);
+  if (totalImportRows > MAX_DATASET_IMPORT_ROWS) {
+    return NextResponse.json(
+      { error: "IMPORT_ROW_LIMIT_EXCEEDED", message: `Một lần import tối đa ${MAX_DATASET_IMPORT_ROWS.toLocaleString("vi-VN")} dòng` },
+      { status: 413 },
+    );
+  }
+
+  const activeImport = await findActiveImport(parsed.data.domain);
+  if (activeImport) {
+    return NextResponse.json(activeImportPayload(activeImport), { status: 409 });
+  }
+
+  const metrics = await getDatasetMetricsFromRubrics(parsed.data.domain);
+  const metricValidation = validateMetricConfig(metrics);
   if (!metricValidation.ok) {
-    return NextResponse.json({ error: "INVALID_METRICS", details: metricValidation }, { status: 400 });
+    return NextResponse.json(
+      { error: metrics.length === 0 ? "NO_RUBRIC_METRICS" : "INVALID_RUBRIC_METRICS", details: metricValidation },
+      { status: 400 },
+    );
   }
 
   const datasetId = createId();
@@ -161,7 +234,21 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
   const totalRows = parsed.data.totalRows ?? parsed.data.rows.length;
   const isComplete = parsed.data.rows.length >= totalRows;
 
+  let blockedImport: Awaited<ReturnType<typeof findActiveImport>> | null = null;
+
   await db.transaction(async (tx: any) => {
+    await lockDatasetImportDomain(tx, parsed.data.domain);
+    [blockedImport] = await tx
+      .select({
+        datasetId: datasets.id,
+        datasetName: datasets.name,
+        sourceFilename: datasetImports.sourceFilename,
+      })
+      .from(datasetImports)
+      .innerJoin(datasets, eq(datasetImports.datasetId, datasets.id))
+      .where(and(eq(datasets.domain, parsed.data.domain), eq(datasets.status, "importing"), eq(datasetImports.status, "in_progress")));
+    if (blockedImport) return;
+
     await tx.insert(datasets).values({
       id: datasetId,
       name: parsed.data.name,
@@ -200,7 +287,7 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
     }
 
     await tx.insert(annotationMetrics).values(
-      parsed.data.metrics.map((metric) => ({
+      metrics.map((metric) => ({
         id: createId(),
         datasetId,
         key: metric.key,
@@ -214,6 +301,10 @@ export const POST = requireAdmin(async (req: NextRequest, session) => {
       })),
     );
   });
+
+  if (blockedImport) {
+    return NextResponse.json(activeImportPayload(blockedImport), { status: 409 });
+  }
 
   return NextResponse.json({ datasetId, importId, insertedRows: parsed.data.rows.length, status: isComplete ? "ready" : "importing" });
 });
