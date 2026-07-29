@@ -119,7 +119,7 @@ test.describe.serial("local-dev review annotation flows", () => {
     const adminPage = await adminContext.newPage();
     await login(adminPage, "admin@local.dev", "/admin");
     await adminPage.goto("/annotator/tasks");
-    await expect(adminPage).toHaveURL(/\/admin\/datasets/);
+    await expect(adminPage).toHaveURL(/\/admin\/dashboard/);
     await adminContext.close();
   });
 
@@ -129,17 +129,19 @@ test.describe.serial("local-dev review annotation flows", () => {
     await login(adminPage, "admin@local.dev", "/admin");
 
     for (const [path, expected] of [
-      ["/", /\/admin\/datasets/],
-      ["/admin", /\/admin\/datasets/],
+      ["/", /\/admin\/dashboard/],
+      ["/admin", /\/admin\/dashboard/],
+      ["/admin/dashboard", /\/admin\/dashboard/],
       ["/admin/batches", /\/admin\/datasets/],
       ["/admin/batches/new", /\/admin\/datasets\/new/],
       ["/admin/batches/legacy-batch-id", /\/admin\/datasets/],
-      ["/admin/dashboard", /\/admin\/datasets/],
       ["/admin/experts", /\/admin\/members/],
     ] as const) {
       await adminPage.goto(path);
       await expect(adminPage).toHaveURL(expected);
     }
+    await adminPage.goto("/admin/dashboard");
+    await expect(adminPage.getByRole("heading", { name: "Tổng quan" })).toBeVisible();
     await adminContext.close();
 
     const annotatorContext = await browser.newContext();

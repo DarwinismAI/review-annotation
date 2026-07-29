@@ -35,7 +35,7 @@ export async function AppShell({ children, variant }: AppShellProps) {
     redirect("/annotator/tasks");
   }
   if (variant === "annotator" && !isAnnotatorRole(session.role)) {
-    redirect("/admin/datasets");
+    redirect("/admin/dashboard");
   }
 
   return (
