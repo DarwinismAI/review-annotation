@@ -14,9 +14,22 @@ type Member = (typeof MEMBERS)[number];
 
 function passwordFor(member: Member) {
   if (member.role === "admin") {
-    return process.env.REVIEWER_DEFAULT_PASSWORD ?? process.env.MEMBER_DEFAULT_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD;
+    return (
+      process.env.REVIEWER_DEFAULT_PASSWORD ??
+      process.env.MEMBER_DEFAULT_PASSWORD ??
+      process.env.SEED_ADMIN_PASSWORD ??
+      process.env.ADMIN_PASSWORD ??
+      process.env.E2E_PASSWORD ??
+      process.env.E2E_ADMIN_PASSWORD
+    );
   }
-  return process.env.LABELING_DEFAULT_PASSWORD ?? process.env.MEMBER_DEFAULT_PASSWORD ?? process.env.SEED_EXPERT_PASSWORD ?? process.env.EXPERT_PASSWORD;
+  return (
+    process.env.LABELING_DEFAULT_PASSWORD ??
+    process.env.MEMBER_DEFAULT_PASSWORD ??
+    process.env.SEED_EXPERT_PASSWORD ??
+    process.env.EXPERT_PASSWORD ??
+    process.env.E2E_PASSWORD
+  );
 }
 
 async function setupLocal() {
@@ -127,7 +140,11 @@ async function setupSupabase() {
 }
 
 async function main() {
+  const target = process.env.SETUP_MEMBERS_TARGET ?? "auto";
   const hasSupabaseUrl = Boolean(process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL);
+  if (target === "supabase" && !hasSupabaseUrl) {
+    throw new Error("SETUP_MEMBERS_TARGET=supabase requires SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL");
+  }
   if (process.env.LOCAL_DB_PATH || !hasSupabaseUrl) {
     await setupLocal();
     console.log(`Configured ${MEMBERS.length} review members in local DB.`);
