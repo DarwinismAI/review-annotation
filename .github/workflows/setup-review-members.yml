@@ -1,0 +1,61 @@
+name: Setup review members
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Supabase target to provision"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - both
+          - prod
+          - dev
+
+jobs:
+  setup-prod:
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'prod' }}
+    runs-on: ubuntu-latest
+    env:
+      SETUP_MEMBERS_TARGET: supabase
+      SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL || secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.PROD_SUPABASE_SECRET_KEY || secrets.SUPABASE_SECRET_KEY }}
+      MEMBER_DEFAULT_PASSWORD: ${{ secrets.PROD_E2E_PASSWORD || secrets.E2E_PASSWORD || secrets.PROD_E2E_ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Provision production members
+        run: pnpm run setup:members
+      - name: Verify production members
+        run: pnpm exec tsx scripts/verify-review-members.ts
+
+  setup-dev:
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'dev' }}
+    runs-on: ubuntu-latest
+    env:
+      SETUP_MEMBERS_TARGET: supabase
+      SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || secrets.DEV_SUPABASE_SECRET_KEY }}
+      MEMBER_DEFAULT_PASSWORD: ${{ secrets.DEV_E2E_PASSWORD || secrets.DEV_E2E_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Provision dev members
+        run: pnpm run setup:members
+      - name: Verify dev members
+        run: pnpm exec tsx scripts/verify-review-members.ts
