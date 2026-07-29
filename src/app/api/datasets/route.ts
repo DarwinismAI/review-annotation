@@ -49,9 +49,19 @@ function chunkRows<T>(rows: T[], size: number): T[][] {
   return chunks;
 }
 
-export const GET = requireAdmin(async () => {
-  const allDatasets = await db.select().from(datasets).orderBy(desc(datasets.createdAt));
-  const datasetIds = allDatasets.map((dataset: any) => dataset.id);
+export const GET = requireAdmin(async (req: NextRequest) => {
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(Number(searchParams.get("page") ?? 1) || 1, 1);
+  const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50) || 50, 1), 200);
+  const offset = (page - 1) * pageSize;
+
+  const [{ total: datasetTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasets);
+  const [{ total: rowTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasetRows);
+  const [{ total: metricTotal } = { total: 0 }] = await db.select({ total: count() }).from(annotationMetrics);
+  const statusCounts = await db.select({ status: datasets.status, total: count() }).from(datasets).groupBy(datasets.status);
+
+  const pagedDatasets = await db.select().from(datasets).orderBy(desc(datasets.createdAt)).limit(pageSize).offset(offset);
+  const datasetIds = pagedDatasets.map((dataset: any) => dataset.id);
   const rowCounts =
     datasetIds.length > 0
       ? await db
@@ -68,26 +78,26 @@ export const GET = requireAdmin(async () => {
           .where(inArray(annotationMetrics.datasetId, datasetIds))
           .groupBy(annotationMetrics.datasetId)
       : [];
-  const latestImportTimes = db
-    .select({
-      datasetId: datasetImports.datasetId,
-      latestCreatedAt: max(datasetImports.createdAt).as("latest_created_at"),
-    })
-    .from(datasetImports)
-    .where(inArray(datasetImports.datasetId, datasetIds))
-    .groupBy(datasetImports.datasetId)
-    .as("latest_import_times");
-  const allImports =
-    datasetIds.length > 0
-      ? await db
-          .select({ datasetId: datasetImports.datasetId, sourceFilename: datasetImports.sourceFilename })
-          .from(datasetImports)
-          .innerJoin(
-            latestImportTimes,
-            and(eq(datasetImports.datasetId, latestImportTimes.datasetId), eq(datasetImports.createdAt, latestImportTimes.latestCreatedAt)),
-          )
-          .orderBy(desc(datasetImports.createdAt))
-      : [];
+  let allImports: Array<{ datasetId: string; sourceFilename: string }> = [];
+  if (datasetIds.length > 0) {
+    const latestImportTimes = db
+      .select({
+        datasetId: datasetImports.datasetId,
+        latestCreatedAt: max(datasetImports.createdAt).as("latest_created_at"),
+      })
+      .from(datasetImports)
+      .where(inArray(datasetImports.datasetId, datasetIds))
+      .groupBy(datasetImports.datasetId)
+      .as("latest_import_times");
+    allImports = await db
+      .select({ datasetId: datasetImports.datasetId, sourceFilename: datasetImports.sourceFilename })
+      .from(datasetImports)
+      .innerJoin(
+        latestImportTimes,
+        and(eq(datasetImports.datasetId, latestImportTimes.datasetId), eq(datasetImports.createdAt, latestImportTimes.latestCreatedAt)),
+      )
+      .orderBy(desc(datasetImports.createdAt));
+  }
 
   const rowCount = new Map<string, number>();
   for (const row of rowCounts) rowCount.set(row.datasetId, row.total);
@@ -100,8 +110,11 @@ export const GET = requireAdmin(async () => {
     if (!latestImport.has(item.datasetId)) latestImport.set(item.datasetId, item.sourceFilename);
   }
 
+  const statusCount = new Map<string, number>();
+  for (const status of statusCounts) statusCount.set(status.status, status.total);
+
   return NextResponse.json({
-    datasets: allDatasets.map((dataset: any) => ({
+    datasets: pagedDatasets.map((dataset: any) => ({
       id: dataset.id,
       name: dataset.name,
       domain: dataset.domain,
@@ -111,6 +124,16 @@ export const GET = requireAdmin(async () => {
       latestImport: latestImport.get(dataset.id) ?? null,
       createdAt: dataset.createdAt,
     })),
+    page,
+    pageSize,
+    total: datasetTotal,
+    summary: {
+      datasetCount: datasetTotal,
+      rowCount: rowTotal,
+      metricCount: metricTotal,
+      readyCount: statusCount.get("ready") ?? 0,
+      importingCount: statusCount.get("importing") ?? 0,
+    },
   });
 });
 

@@ -15,6 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "seed:local": "tsx scripts/seed.ts",
+    "seed:perf": "LOCAL_DB_PATH=file:.tmp/navigation-performance.db tsx scripts/seed-navigation-performance.ts",
+    "benchmark:navigation": "tsx scripts/benchmark-navigation-performance.ts",
     "assign:new-experts": "tsx scripts/assign-new-experts-rest.ts",
     "smoke:local": "bash scripts/smoke.sh",
     "test:datasets": "tsx tests/datasets/run.ts",

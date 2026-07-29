@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { JsonFieldValue } from "@/components/admin/json-field-value";
+import { useJsonResource } from "@/hooks/use-json-resource";
 
 interface AnnotatorTask {
   id: string;
@@ -17,20 +17,17 @@ interface AnnotatorTask {
   metricLabels: string[];
 }
 
-export default function AnnotatorTasksPage() {
-  const [tasks, setTasks] = useState<AnnotatorTask[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+interface TasksPayload {
+  tasks?: AnnotatorTask[];
+  total?: number;
+}
 
-  useEffect(() => {
-    fetch("/api/annotator/tasks")
-      .then((response) => response.json())
-      .then((payload) => {
-        setTasks(payload.tasks ?? []);
-        setTotal(payload.total ?? payload.tasks?.length ?? 0);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+const EMPTY_TASKS: TasksPayload = { tasks: [], total: 0 };
+
+export default function AnnotatorTasksPage() {
+  const { data, error, loading } = useJsonResource<TasksPayload>("/api/annotator/tasks", EMPTY_TASKS);
+  const tasks = data.tasks ?? [];
+  const total = data.total ?? tasks.length;
 
   const listFields = Array.from(new Set(tasks.flatMap((task) => Object.keys(task.listFields))));
   const visibleListFields = loading ? ["Dữ liệu"] : listFields;
@@ -41,6 +38,8 @@ export default function AnnotatorTasksPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Task của tôi</h1>
         <p className="text-sm text-slate-500">Đang hiển thị {tasks.length} / {total} task mới nhất.</p>
       </div>
+
+      {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <Table>

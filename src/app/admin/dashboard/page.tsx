@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { Activity, ClipboardList, Database, Gauge, Plus, Users, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useJsonResource } from "@/hooks/use-json-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface DatasetListItem {
@@ -27,66 +28,52 @@ interface MemberListItem {
   annotatorStatus: string | null;
 }
 
-interface OverviewState {
-  datasets: DatasetListItem[];
-  members: MemberListItem[];
+interface DatasetsPayload {
+  datasets?: DatasetListItem[];
+  summary?: DatasetSummary;
 }
 
-const EMPTY_STATE: OverviewState = { datasets: [], members: [] };
+interface MembersPayload {
+  members?: MemberListItem[];
+}
+
+interface DatasetSummary {
+  datasetCount: number;
+  rowCount: number;
+  metricCount: number;
+  readyCount: number;
+  importingCount: number;
+}
+
+const EMPTY_SUMMARY: DatasetSummary = {
+  datasetCount: 0,
+  rowCount: 0,
+  metricCount: 0,
+  readyCount: 0,
+  importingCount: 0,
+};
+const EMPTY_DATASETS: DatasetsPayload = { datasets: [], summary: EMPTY_SUMMARY };
+const EMPTY_MEMBERS: MembersPayload = { members: [] };
 
 export default function AdminDashboardPage() {
-  const [state, setState] = useState<OverviewState>(EMPTY_STATE);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadOverview() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [datasetsResponse, membersResponse] = await Promise.all([
-          fetch("/api/datasets", { signal: controller.signal }),
-          fetch("/api/admin/members", { signal: controller.signal }),
-        ]);
-        if (!datasetsResponse.ok || !membersResponse.ok) throw new Error("Không tải được tổng quan");
-
-        const [datasetsPayload, membersPayload] = await Promise.all([
-          datasetsResponse.json(),
-          membersResponse.json(),
-        ]);
-
-        setState({
-          datasets: datasetsPayload.datasets ?? [],
-          members: membersPayload.members ?? [],
-        });
-      } catch (loadError) {
-        if ((loadError as Error).name !== "AbortError") {
-          setError(loadError instanceof Error ? loadError.message : "Không tải được tổng quan");
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    }
-
-    loadOverview();
-    return () => controller.abort();
-  }, []);
+  const datasetsResource = useJsonResource<DatasetsPayload>("/api/datasets?page=1&pageSize=5", EMPTY_DATASETS);
+  const membersResource = useJsonResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
+  const datasets = datasetsResource.data.datasets ?? [];
+  const members = membersResource.data.members ?? [];
+  const summary = datasetsResource.data.summary ?? EMPTY_SUMMARY;
+  const error = datasetsResource.error ?? membersResource.error;
 
   const stats = useMemo(() => {
-    const datasets = state.datasets;
-    const members = state.members;
     return {
-      datasetCount: datasets.length,
-      rowCount: datasets.reduce((sum, dataset) => sum + dataset.rowCount, 0),
-      metricCount: datasets.reduce((sum, dataset) => sum + dataset.metricCount, 0),
+      datasetCount: summary.datasetCount,
+      rowCount: summary.rowCount,
+      metricCount: summary.metricCount,
       activeAnnotators: members.filter((member) => member.role === "annotator" && member.annotatorStatus === "active").length,
-      importingCount: datasets.filter((dataset) => dataset.status === "importing").length,
-      readyCount: datasets.filter((dataset) => dataset.status === "ready").length,
-      recentDatasets: datasets.slice(0, 5),
+      importingCount: summary.importingCount,
+      readyCount: summary.readyCount,
+      recentDatasets: datasets,
     };
-  }, [state]);
+  }, [datasets, members, summary]);
 
   return (
     <div className="space-y-5">
@@ -108,10 +95,10 @@ export default function AdminDashboardPage() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <OverviewCard icon={Database} label="Dataset" value={stats.datasetCount} loading={loading} helper={`${stats.readyCount} ready`} />
-        <OverviewCard icon={Activity} label="Dòng dữ liệu" value={stats.rowCount} loading={loading} helper={`${stats.importingCount} đang import`} />
-        <OverviewCard icon={ClipboardList} label="Metric" value={stats.metricCount} loading={loading} helper="Đang dùng để chấm" />
-        <OverviewCard icon={Users} label="Annotator active" value={stats.activeAnnotators} loading={loading} helper="Có thể nhận task" />
+        <OverviewCard icon={Database} label="Dataset" value={stats.datasetCount} loading={datasetsResource.loading} helper={`${stats.readyCount} ready`} />
+        <OverviewCard icon={Activity} label="Dòng dữ liệu" value={stats.rowCount} loading={datasetsResource.loading} helper={`${stats.importingCount} đang import`} />
+        <OverviewCard icon={ClipboardList} label="Metric" value={stats.metricCount} loading={datasetsResource.loading} helper="Đang dùng để chấm" />
+        <OverviewCard icon={Users} label="Annotator active" value={stats.activeAnnotators} loading={membersResource.loading} helper="Có thể nhận task" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -128,7 +115,7 @@ export default function AdminDashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading &&
+              {datasetsResource.loading &&
                 Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
                     <TableCell><Skeleton className="h-4 w-48" /></TableCell>
@@ -139,7 +126,7 @@ export default function AdminDashboardPage() {
                     <TableCell><Skeleton className="ml-auto h-8 w-14" /></TableCell>
                   </TableRow>
                 ))}
-              {!loading && stats.recentDatasets.length === 0 && (
+              {!datasetsResource.loading && stats.recentDatasets.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="h-20 text-slate-500">
                     Chưa có dataset.

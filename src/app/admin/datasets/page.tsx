@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useJsonResource } from "@/hooks/use-json-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface DatasetListItem {
@@ -19,23 +20,29 @@ interface DatasetListItem {
   createdAt: string;
 }
 
-export default function AdminDatasetsPage() {
-  const [datasets, setDatasets] = useState<DatasetListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DatasetsPayload {
+  datasets?: DatasetListItem[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+}
 
-  useEffect(() => {
-    fetch("/api/datasets")
-      .then((response) => response.json())
-      .then((payload) => setDatasets(payload.datasets ?? []))
-      .finally(() => setLoading(false));
-  }, []);
+const EMPTY_DATASETS: DatasetsPayload = { datasets: [] };
+const PAGE_SIZE = 50;
+
+export default function AdminDatasetsPage() {
+  const [page, setPage] = useState(1);
+  const { data, error, loading } = useJsonResource<DatasetsPayload>(`/api/datasets?page=${page}&pageSize=${PAGE_SIZE}`, EMPTY_DATASETS);
+  const datasets = data.datasets ?? [];
+  const total = data.total ?? datasets.length;
+  const totalPages = Math.max(Math.ceil(total / (data.pageSize ?? PAGE_SIZE)), 1);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Datasets</h1>
-          <p className="text-sm text-slate-500">Quản lý import, field hiển thị, metric và assign annotator.</p>
+          <p className="text-sm text-slate-500">Quản lý import, field hiển thị, metric và assign annotator. Hiển thị {datasets.length} / {total} dataset.</p>
         </div>
         <Button asChild>
           <Link href="/admin/datasets/new">
@@ -44,6 +51,8 @@ export default function AdminDatasetsPage() {
           </Link>
         </Button>
       </div>
+
+      {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <Table>
@@ -97,6 +106,17 @@ export default function AdminDatasetsPage() {
             ))}
           </TableBody>
         </Table>
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-3 py-2 text-sm text-slate-600">
+          <span>Trang {page} / {totalPages}</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+              Trước
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>
+              Sau
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

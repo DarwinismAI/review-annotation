@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useJsonResource } from "@/hooks/use-json-resource";
 import { ROLE_LABELS, labelForDomain } from "@/lib/labels";
 import type { AppRole } from "@/lib/roles";
 
@@ -16,6 +17,13 @@ interface Member {
   annotatorDomain: string | null;
   annotatorStatus: string | null;
 }
+
+interface MembersPayload {
+  canManageRoles?: boolean;
+  members?: Member[];
+}
+
+const EMPTY_MEMBERS: MembersPayload = { canManageRoles: false, members: [] };
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Đang hoạt động",
@@ -32,28 +40,15 @@ function statusLabel(status: string | null): string {
 }
 
 export default function AdminMembersPage() {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [canManageRoles, setCanManageRoles] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { data, error: loadError, loading, setData } = useJsonResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
+  const members = data.members ?? [];
+  const canManageRoles = Boolean(data.canManageRoles);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    fetch("/api/admin/members")
-      .then((res) => {
-        if (!res.ok) throw new Error("Không tải được danh sách thành viên");
-        return res.json();
-      })
-      .then((payload) => {
-        setMembers(payload.members ?? []);
-        setCanManageRoles(Boolean(payload.canManageRoles));
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Không tải được danh sách thành viên"))
-      .finally(() => setLoading(false));
-  }, []);
+  const [mutationError, setMutationError] = useState("");
+  const error = mutationError || loadError || "";
 
   async function updateRole(member: Member, role: "admin" | "annotator") {
-    setError("");
+    setMutationError("");
     setSavingId(member.id);
     try {
       const res = await fetch("/api/admin/members", {
@@ -63,12 +58,15 @@ export default function AdminMembersPage() {
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(payload.error ?? "Không cập nhật được role");
+        setMutationError(payload.error ?? "Không cập nhật được role");
         return;
       }
-      setMembers((current) => current.map((item) => (item.id === member.id ? { ...item, role: payload.member.role } : item)));
+      setData((current) => ({
+        ...current,
+        members: (current.members ?? []).map((item) => (item.id === member.id ? { ...item, role: payload.member.role } : item)),
+      }));
     } catch {
-      setError("Không cập nhật được role");
+      setMutationError("Không cập nhật được role");
     } finally {
       setSavingId(null);
     }
@@ -76,7 +74,7 @@ export default function AdminMembersPage() {
 
   async function updateAnnotatorStatus(member: Member, status: "active" | "inactive") {
     if (!member.annotatorProfileId) return;
-    setError("");
+    setMutationError("");
     setSavingId(member.id);
     try {
       const res = await fetch(`/api/annotators/${member.annotatorProfileId}`, {
@@ -86,11 +84,12 @@ export default function AdminMembersPage() {
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(payload.error?.message ?? "Không cập nhật được trạng thái annotator");
+        setMutationError(payload.error?.message ?? "Không cập nhật được trạng thái annotator");
         return;
       }
-      setMembers((current) =>
-        current.map((item) =>
+      setData((current) => ({
+        ...current,
+        members: (current.members ?? []).map((item) =>
           item.id === member.id
             ? {
                 ...item,
@@ -99,9 +98,9 @@ export default function AdminMembersPage() {
               }
             : item,
         ),
-      );
+      }));
     } catch {
-      setError("Không cập nhật được trạng thái annotator");
+      setMutationError("Không cập nhật được trạng thái annotator");
     } finally {
       setSavingId(null);
     }
