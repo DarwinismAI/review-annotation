@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Send } from "lucide-react";
+import { Download, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DatasetAppendImportPanel } from "@/components/admin/dataset-append-import-panel";
 import { DatasetAssignModal } from "@/components/admin/dataset-assign-modal";
+import { DatasetRowDetailDialog } from "@/components/admin/dataset-row-detail-dialog";
 import { DatasetRowTable, type DatasetRow } from "@/components/admin/dataset-row-table";
 import { labelForDomain } from "@/lib/labels";
 
@@ -30,6 +31,7 @@ export default function DatasetDetailPage() {
   const [detail, setDetail] = useState<DatasetDetail | null>(null);
   const [rows, setRows] = useState<DatasetRow[]>([]);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const [rowTotal, setRowTotal] = useState(0);
   const [assignOpen, setAssignOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export default function DatasetDetailPage() {
     try {
       const [detailResponse, rowsResponse] = await Promise.all([
         fetch(`/api/datasets/${datasetId}`, { cache: "no-store" }),
-        fetch(`/api/datasets/${datasetId}/rows?pageSize=200&fields=detail`, { cache: "no-store" }),
+        fetch(`/api/datasets/${datasetId}/rows?pageSize=200&fields=list`, { cache: "no-store" }),
       ]);
       const [detailPayload, rowsPayload] = await Promise.all([detailResponse.json(), rowsResponse.json()]);
       if (!detailResponse.ok) throw new Error(detailPayload.error ?? "Không tải được dataset");
@@ -109,6 +111,7 @@ export default function DatasetDetailPage() {
     return <div className="text-sm text-red-600">{loadError || "Không tải được dataset"}</div>;
   }
   const datasetReady = detail.dataset.status === "ready";
+  const downloadUrl = `/api/datasets/${datasetId}/export?format=jsonl`;
 
   return (
     <div className="space-y-5">
@@ -122,10 +125,16 @@ export default function DatasetDetailPage() {
             {!datasetReady && <Badge variant="warning">Đang import</Badge>}
           </div>
         </div>
-        <Button type="button" onClick={() => setAssignOpen(true)} disabled={!datasetReady}>
-          <Send className="h-4 w-4" />
-          Assign
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => { window.location.href = downloadUrl; }} disabled={rowTotal === 0}>
+            <Download className="h-4 w-4" />
+            Download JSONL
+          </Button>
+          <Button type="button" onClick={() => setAssignOpen(true)} disabled={!datasetReady}>
+            <Send className="h-4 w-4" />
+            Assign
+          </Button>
+        </div>
       </div>
       {!datasetReady && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Dataset đang import, chưa thể assign task.</div>}
 
@@ -137,9 +146,10 @@ export default function DatasetDetailPage() {
           </div>
           <DatasetRowTable
             rows={rows}
-            listFields={detail.dataset.displayConfig.detailFields}
+            listFields={detail.dataset.displayConfig.listFields}
             selectedRowIds={selectedRowIds}
             onSelectedRowIdsChange={setSelectedRowIds}
+            onRowOpen={(row) => setDetailRowId(row.id)}
           />
         </div>
         <div className="space-y-4">
@@ -169,6 +179,14 @@ export default function DatasetDetailPage() {
         open={assignOpen}
         onOpenChange={setAssignOpen}
         onAssigned={() => load({ preserveView: true })}
+      />
+      <DatasetRowDetailDialog
+        datasetId={datasetId}
+        rowId={detailRowId}
+        open={detailRowId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailRowId(null);
+        }}
       />
     </div>
   );

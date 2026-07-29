@@ -4,8 +4,24 @@ import { db } from "@/db/client";
 import { annotationAssignments, annotationResults, datasetRows, datasets } from "@/db/datasets";
 import { profiles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
-import { computeAgreement, computeRowProgress } from "@/lib/datasets/aggregation";
+import { computeAgreement, computeRowProgress, type RowAssignmentForAggregation } from "@/lib/datasets/aggregation";
 import { projectFields, type JsonRecord } from "@/lib/datasets/import-validation";
+
+type DatasetRowListRecord = { id: string; internalRowId: number; rawJson: unknown };
+type DatasetRowAssignmentRecord = {
+  rowId: string;
+  annotatorId: string;
+  annotatorName: string | null;
+  annotatorImage: string | null;
+  status: string;
+  targetOverlap: number;
+};
+type DatasetRowResultRecord = { rowId: string; metricId: string; value: string | null };
+type DatasetRowAgreementResult = { rowId: string; metricId: string; value: string };
+
+function hasAgreementValue<T extends DatasetRowResultRecord>(result: T): result is T & DatasetRowAgreementResult {
+  return result.value !== null;
+}
 
 function normalizeJson(value: unknown): JsonRecord {
   if (typeof value === "string") {
@@ -31,16 +47,20 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
   const [{ total }] = await db.select({ total: count() }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId));
-  const pageRows = await db
-    .select()
+  const pageRows: DatasetRowListRecord[] = await db
+    .select({
+      id: datasetRows.id,
+      internalRowId: datasetRows.internalRowId,
+      rawJson: datasetRows.rawJson,
+    })
     .from(datasetRows)
     .where(eq(datasetRows.datasetId, datasetId))
     .orderBy(asc(datasetRows.internalRowId))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
-  const rowIds = pageRows.map((row: any) => row.id);
+  const rowIds = pageRows.map((row) => row.id);
 
-  const assignmentRows =
+  const assignmentRows: DatasetRowAssignmentRecord[] =
     rowIds.length > 0
       ? await db
           .select({
@@ -56,7 +76,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
           .where(and(eq(annotationAssignments.datasetId, datasetId), inArray(annotationAssignments.rowId, rowIds)))
       : [];
 
-  const resultRows =
+  const resultRows: DatasetRowResultRecord[] =
     rowIds.length > 0
       ? await db
           .select({
@@ -69,12 +89,12 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
           .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationAssignments.status, "completed")))
       : [];
 
-  const assignmentsByRow = new Map<string, typeof assignmentRows>();
+  const assignmentsByRow = new Map<string, DatasetRowAssignmentRecord[]>();
   for (const assignment of assignmentRows) {
     assignmentsByRow.set(assignment.rowId, [...(assignmentsByRow.get(assignment.rowId) ?? []), assignment]);
   }
 
-  const resultsByRow = new Map<string, typeof resultRows>();
+  const resultsByRow = new Map<string, DatasetRowResultRecord[]>();
   for (const result of resultRows) {
     resultsByRow.set(result.rowId, [...(resultsByRow.get(result.rowId) ?? []), result]);
   }
@@ -83,16 +103,20 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const projectedFields = fieldMode === "detail" ? displayConfig.detailFields : displayConfig.listFields;
 
   return NextResponse.json({
-    rows: pageRows.map((row: any) => {
+    rows: pageRows.map((row) => {
       const rowAssignments = assignmentsByRow.get(row.id) ?? [];
-      const targetOverlap = rowAssignments.reduce((max: number, assignment: any) => Math.max(max, assignment.targetOverlap), 0);
-      const progress = computeRowProgress(rowAssignments as any, targetOverlap);
+      const targetOverlap = rowAssignments.reduce((max, assignment) => Math.max(max, assignment.targetOverlap), 0);
+      const normalizedAssignments: RowAssignmentForAggregation[] = rowAssignments.map((assignment) => ({
+        ...assignment,
+        status: assignment.status === "completed" || assignment.status === "in_review" ? assignment.status : "assigned",
+      }));
+      const progress = computeRowProgress(normalizedAssignments, targetOverlap);
       return {
         id: row.id,
         internalRowId: row.internalRowId,
         listFields: projectFields(normalizeJson(row.rawJson), projectedFields),
         ...progress,
-        agreement: computeAgreement(resultsByRow.get(row.id) ?? []),
+        agreement: computeAgreement((resultsByRow.get(row.id) ?? []).filter(hasAgreementValue)),
       };
     }),
     total,

@@ -28,9 +28,10 @@ interface DatasetRowTableProps {
   listFields: string[];
   selectedRowIds: string[];
   onSelectedRowIdsChange: (ids: string[]) => void;
+  onRowOpen?: (row: DatasetRow) => void;
 }
 
-export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRowIdsChange }: DatasetRowTableProps) {
+export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRowIdsChange, onRowOpen }: DatasetRowTableProps) {
   const tableMinWidth = `${Math.max(960, 360 + listFields.length * 320)}px`;
 
   function toggle(id: string) {
@@ -63,9 +64,18 @@ export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRo
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              className={onRowOpen ? "cursor-pointer hover:bg-slate-50" : undefined}
+              onClick={() => onRowOpen?.(row)}
+            >
               <TableCell>
-                <input type="checkbox" checked={selectedRowIds.includes(row.id)} onChange={() => toggle(row.id)} />
+                <input
+                  type="checkbox"
+                  checked={selectedRowIds.includes(row.id)}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={() => toggle(row.id)}
+                />
               </TableCell>
               <TableCell className="text-slate-600">{row.internalRowId}</TableCell>
               {listFields.map((field) => (

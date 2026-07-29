@@ -324,6 +324,13 @@ test.describe.serial("local-dev review annotation flows", () => {
     expect(dataset.id).toEqual(createdDatasetId);
     await page.goto(`/admin/datasets/${dataset.id}`);
     await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
+    const datasetRowsTable = page.locator("table").first();
+    await expect(datasetRowsTable.getByRole("columnheader", { name: "input" })).toBeVisible();
+    await expect(datasetRowsTable.getByRole("columnheader", { name: "output" })).toHaveCount(0);
+    await datasetRowsTable.getByRole("row").filter({ hasText: "Mock safety request asking for a policy boundary." }).click();
+    await expect(page.getByRole("dialog", { name: "Row 1" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Row 1" }).getByText("output")).toBeVisible();
+    await page.keyboard.press("Escape");
     await assertPageHealth(page, testInfo, "admin-dataset-detail-desktop");
 
     const detailResponse = await page.request.get(`/api/datasets/${dataset.id}`);
@@ -432,5 +439,28 @@ test.describe.serial("local-dev review annotation flows", () => {
     }
     await assertPageHealth(page, testInfo, "annotator-task-detail-desktop");
     expect(errors).toEqual([]);
+  });
+
+  test("admin can download annotated JSONL with persisted metric values", async ({ browser }) => {
+    expect(createdDatasetId).not.toEqual("");
+    const adminContext = await browser.newContext();
+    const adminPage = await adminContext.newPage();
+    await login(adminPage, "admin@local.dev", "/admin");
+
+    const exportResponse = await adminPage.request.get(`/api/datasets/${createdDatasetId}/export?format=jsonl`);
+    expect(exportResponse.ok()).toBeTruthy();
+    expect(exportResponse.headers()["content-type"]).toContain("application/x-ndjson");
+    const rows = (await exportResponse.text())
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { data: Record<string, unknown>; annotation: { completed_count: number; results: Array<{ metrics: Record<string, { value: string | null; note: string | null }> }> } });
+    expect(rows.length).toBeGreaterThanOrEqual(INITIAL_ROWS.length);
+    const annotatedRow = rows.find((row) => row.annotation.completed_count > 0);
+    expect(annotatedRow).toBeTruthy();
+    expect(annotatedRow?.annotation.results.some((result) => Object.values(result.metrics).some((metric) => metric.value === "Pass"))).toBeTruthy();
+    expect(annotatedRow?.annotation.results.some((result) => Object.values(result.metrics).some((metric) => metric.note?.startsWith("Playwright note")))).toBeTruthy();
+
+    await adminContext.close();
   });
 });
