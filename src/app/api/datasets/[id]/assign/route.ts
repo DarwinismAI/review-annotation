@@ -17,7 +17,7 @@ const assignRequestSchema = z.object({
   ]),
   targetOverlap: z.number().int().min(1).max(5),
   maxRowsPerAnnotator: z.number().int().min(1).optional(),
-  metricIds: z.array(z.string()).min(1),
+  metricIds: z.array(z.string()).min(1).optional(),
   annotatorIds: z.array(z.string()).min(1),
 });
 
@@ -39,9 +39,11 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
   const metrics = await db
     .select({ id: annotationMetrics.id })
     .from(annotationMetrics)
-    .where(and(eq(annotationMetrics.datasetId, datasetId), inArray(annotationMetrics.id, parsed.data.metricIds)));
-  if (metrics.length !== parsed.data.metricIds.length) {
-    return NextResponse.json({ error: "INVALID_METRICS" }, { status: 400 });
+    .where(eq(annotationMetrics.datasetId, datasetId))
+    .orderBy(asc(annotationMetrics.sortOrder), asc(annotationMetrics.id));
+  const metricIds = metrics.map((metric: any) => metric.id);
+  if (metricIds.length === 0) {
+    return NextResponse.json({ error: "NO_METRICS" }, { status: 400 });
   }
 
   const activeAnnotators = await db
@@ -66,7 +68,7 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
   const rows = await rowQuery;
   const rowIds = rows.map((row: any) => row.id);
 
-  const metricKey = buildMetricKey(parsed.data.metricIds);
+  const metricKey = buildMetricKey(metricIds);
   const existingAssignments = await db
     .select({
       rowId: annotationAssignments.rowId,
@@ -80,7 +82,7 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
   const plan = planBalancedAssignments({
     rowIds,
     annotatorIds,
-    metricIds: parsed.data.metricIds,
+    metricIds,
     targetOverlap: parsed.data.targetOverlap,
     maxRowsPerAnnotator: parsed.data.maxRowsPerAnnotator,
     existingAssignments: existingAssignments as any,
@@ -117,7 +119,7 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
       id: assignmentRunId,
       datasetId,
       targetOverlap: parsed.data.targetOverlap,
-      metricIds: parsed.data.metricIds,
+      metricIds,
       scope: parsed.data.scope.type,
       createdBy: session.user.id,
       createdAt: now,
