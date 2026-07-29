@@ -40,7 +40,9 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
 
   const { searchParams } = new URL(req.url);
   const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
-  const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50), 1), 200);
+  const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50), 1), 100);
+  const q = searchParams.get("q")?.trim().toLowerCase() ?? "";
+  const completion = searchParams.get("completion") ?? "";
   const fieldMode = searchParams.get("fields") === "detail" ? "detail" : "list";
 
   const dataset = (await db.select().from(datasets).where(eq(datasets.id, datasetId)))[0];
@@ -102,8 +104,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const displayConfig = dataset.displayConfig as { listFields: string[]; detailFields: string[] };
   const projectedFields = fieldMode === "detail" ? displayConfig.detailFields : displayConfig.listFields;
 
-  return NextResponse.json({
-    rows: pageRows.map((row) => {
+  const rows = pageRows.map((row) => {
       const rowAssignments = assignmentsByRow.get(row.id) ?? [];
       const targetOverlap = rowAssignments.reduce((max, assignment) => Math.max(max, assignment.targetOverlap), 0);
       const normalizedAssignments: RowAssignmentForAggregation[] = rowAssignments.map((assignment) => ({
@@ -118,7 +119,22 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
         ...progress,
         agreement: computeAgreement((resultsByRow.get(row.id) ?? []).filter(hasAgreementValue)),
       };
-    }),
+    })
+    // Search and completion are page-scoped to keep this API bounded across Postgres and local SQLite.
+    .filter((row) => {
+      if (!q) return true;
+      return String(row.internalRowId) === q || JSON.stringify(row.listFields).toLowerCase().includes(q);
+    })
+    .filter((row) => {
+      if (completion === "completed") return row.completedCount >= row.completedCount + row.missingCount && row.completedCount > 0;
+      if (completion === "incomplete") return row.missingCount > 0;
+      return true;
+    });
+
+  return NextResponse.json({
+    rows,
     total,
+    page,
+    pageSize,
   });
 });

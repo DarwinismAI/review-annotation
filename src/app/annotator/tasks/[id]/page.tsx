@@ -1,26 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnnotationWorkspace, type AnnotationWorkspaceMetric } from "@/components/annotation/annotation-workspace";
 import { Badge } from "@/components/ui/badge";
-import { JsonFieldValue } from "@/components/admin/json-field-value";
+import { Button } from "@/components/ui/button";
 
 interface TaskDetail {
   id: string;
+  assignmentRunId: string;
   status: string;
   datasetName: string;
   internalRowId: number;
   detailFields: Record<string, unknown>;
-  metrics: Array<{ id: string; key: string; label: string; description: string | null; scale: { values: string[] }; required: boolean }>;
+  metrics: AnnotationWorkspaceMetric[];
   existingValues: Record<string, { value: string | null; note: string | null }>;
 }
 
-export default function ExpertTaskDetailPage() {
+interface NextPayload {
+  done: boolean;
+  nextTaskId: string | null;
+  error?: string;
+}
+
+export default function AnnotatorTaskGroupPage() {
   const params = useParams<{ id: string }>();
-  const taskId = params.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const groupId = params.id;
   const [task, setTask] = useState<TaskDetail | null>(null);
+  const [done, setDone] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -30,6 +40,51 @@ export default function ExpertTaskDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const loadedRef = useRef(false);
   const changeVersionRef = useRef(0);
+  const currentTaskIdRef = useRef<string | null>(null);
+
+  const loadTask = useCallback(async (taskId: string) => {
+    const response = await fetch(`/api/annotator/tasks/${taskId}`, { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error ?? "Không tải được task");
+
+    const loadedTask = payload.task as TaskDetail;
+    setTask(loadedTask);
+    currentTaskIdRef.current = loadedTask.id;
+    setValues(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.value ?? ""])));
+    setNotes(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.note ?? ""])));
+    setDirty(false);
+    setDone(false);
+    loadedRef.current = true;
+  }, []);
+
+  const loadNext = useCallback(async () => {
+    setLoading(true);
+    setStatus("");
+    try {
+      const response = await fetch(`/api/annotator/task-groups/${groupId}/next`, { cache: "no-store" });
+      const payload = (await response.json()) as NextPayload;
+      if (!response.ok) throw new Error(payload.error ?? "Không tải được task tiếp theo");
+
+      if (payload.done || !payload.nextTaskId) {
+        setTask(null);
+        setValues({});
+        setNotes({});
+        setDirty(false);
+        setDone(true);
+        loadedRef.current = false;
+        currentTaskIdRef.current = null;
+        router.replace(`/annotator/tasks/${groupId}`);
+        return;
+      }
+
+      await loadTask(payload.nextTaskId);
+      router.replace(`/annotator/tasks/${groupId}?item=${payload.nextTaskId}`);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Không tải được task");
+    } finally {
+      setLoading(false);
+    }
+  }, [groupId, loadTask, router]);
 
   function markDirty() {
     if (task?.status === "completed") return;
@@ -38,24 +93,23 @@ export default function ExpertTaskDetailPage() {
   }
 
   useEffect(() => {
+    const itemId = searchParams.get("item");
+    if (!itemId) {
+      loadNext();
+      return;
+    }
+    if (currentTaskIdRef.current === itemId) return;
+
     setLoading(true);
-    fetch(`/api/annotator/tasks/${taskId}`, { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error ?? "Không tải được task");
-        return payload;
+    setStatus("");
+    loadTask(itemId)
+      .catch((err) => {
+        setStatus(err instanceof Error ? err.message : "Không tải được task");
       })
-      .then((payload) => {
-        const loadedTask = payload.task as TaskDetail;
-        setTask(loadedTask);
-        setValues(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.value ?? ""])));
-        setNotes(Object.fromEntries(Object.entries(loadedTask.existingValues ?? {}).map(([metricId, value]) => [metricId, value.note ?? ""])));
-        setDirty(false);
-        loadedRef.current = true;
-      })
-      .catch((err) => setStatus(err instanceof Error ? err.message : "Không tải được task"))
-      .finally(() => setLoading(false));
-  }, [taskId]);
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [loadNext, loadTask, searchParams]);
 
   useEffect(() => {
     if (!task || task.status === "completed" || !loadedRef.current || !dirty || submitting) return;
@@ -63,7 +117,7 @@ export default function ExpertTaskDetailPage() {
       const saveVersion = changeVersionRef.current;
       setSaving(true);
       try {
-        const response = await fetch(`/api/annotator/tasks/${taskId}/draft`, {
+        const response = await fetch(`/api/annotator/tasks/${task.id}/draft`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ values, notes }),
@@ -77,7 +131,7 @@ export default function ExpertTaskDetailPage() {
         setStatus(
           payload.savedAt
             ? `Đã lưu nháp ${new Date(payload.savedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`
-            : "Đã lưu"
+            : "Đã lưu",
         );
         setTask((current) => (current && current.status === "assigned" ? { ...current, status: "in_progress" } : current));
       } catch {
@@ -88,7 +142,7 @@ export default function ExpertTaskDetailPage() {
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [dirty, notes, submitting, task, taskId, values]);
+  }, [dirty, notes, submitting, task, values]);
 
   useEffect(() => {
     function warn(event: BeforeUnloadEvent) {
@@ -101,14 +155,15 @@ export default function ExpertTaskDetailPage() {
   }, [dirty]);
 
   async function submit() {
+    if (!task) return;
     setStatus("");
-    if (task?.status === "completed") {
+    if (task.status === "completed") {
       setStatus("Task đã completed");
       return;
     }
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/annotator/tasks/${taskId}/submit`, {
+      const response = await fetch(`/api/annotator/tasks/${task.id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ values, notes }),
@@ -121,9 +176,34 @@ export default function ExpertTaskDetailPage() {
       setDirty(false);
       changeVersionRef.current += 1;
       setStatus("Đã submit");
-      setTask((current) => (current ? { ...current, status: payload.status } : current));
+      await loadNext();
     } catch {
       setStatus("Submit thất bại");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function skipCurrentTask() {
+    if (!task || task.status === "completed") return;
+    if (dirty && saving) {
+      setStatus("Đang lưu nháp, vui lòng chờ trước khi skip");
+      return;
+    }
+    setStatus("");
+    setSubmitting(true);
+    try {
+      const response = await fetch(`/api/annotator/tasks/${task.id}/skip`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatus(payload.error ?? "Skip thất bại");
+        return;
+      }
+      setDirty(false);
+      changeVersionRef.current += 1;
+      await loadNext();
+    } catch {
+      setStatus("Skip thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -132,6 +212,21 @@ export default function ExpertTaskDetailPage() {
   if (loading) {
     return <div className="text-sm text-slate-500">Đang tải task...</div>;
   }
+
+  if (done) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Task group hoàn tất</h1>
+          <p className="text-sm text-slate-500">Không còn assignment khả dụng trong nhóm này.</p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/annotator/tasks">Quay lại task được giao</Link>
+        </Button>
+      </div>
+    );
+  }
+
   if (!task) {
     return <div className="text-sm text-red-600">{status || "Không tải được task"}</div>;
   }
@@ -146,67 +241,34 @@ export default function ExpertTaskDetailPage() {
             <Badge variant={task.status === "completed" ? "success" : "secondary"}>{task.status}</Badge>
           </div>
         </div>
-        <Button type="button" onClick={submit} disabled={task.status === "completed" || submitting || saving}>
-          {submitting ? "Đang submit..." : "Submit"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={skipCurrentTask} disabled={submitting || saving || task.status === "completed"}>
+            Skip
+          </Button>
+          <Button type="button" onClick={submit} disabled={task.status === "completed" || submitting || saving}>
+            {submitting ? "Đang xử lý..." : "Submit"}
+          </Button>
+        </div>
       </div>
 
-      <section className="rounded-md border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">Detail fields</div>
-        <div className="divide-y divide-slate-100">
-          {Object.entries(task.detailFields).map(([field, value]) => (
-            <div key={field} className="grid gap-2 px-4 py-3 md:grid-cols-[220px_1fr]">
-              <div className="font-mono text-xs text-slate-500">{field}</div>
-              <JsonFieldValue value={value} maxLength={2000} className="max-w-none whitespace-pre-wrap text-slate-800" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase text-slate-500">Metrics</h2>
-        {task.metrics.map((metric) => (
-          <div key={metric.id} className="rounded-md border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="font-medium text-slate-900">{metric.label}</div>
-                {metric.description && <div className="mt-1 text-sm text-slate-500">{metric.description}</div>}
-              </div>
-              <div className="flex gap-2">
-                {metric.scale.values.map((option) => (
-                  <Button
-                    key={option}
-                    type="button"
-                    aria-pressed={values[metric.id] === option}
-                    variant={values[metric.id] === option ? "default" : "outline"}
-                    disabled={task.status === "completed"}
-                    onClick={() => {
-                      setValues((current) => ({ ...current, [metric.id]: option }));
-                      markDirty();
-                    }}
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <label htmlFor={`note-${metric.id}`} className="mt-3 block text-sm font-medium text-slate-700">
-              Ghi chú
-            </label>
-            <Textarea
-              id={`note-${metric.id}`}
-              value={notes[metric.id] ?? ""}
-              disabled={task.status === "completed"}
-              onChange={(event) => {
-                setNotes((current) => ({ ...current, [metric.id]: event.target.value }));
-                markDirty();
-              }}
-              className="mt-1.5"
-              placeholder="Nhập ghi chú"
-            />
-          </div>
-        ))}
-      </section>
+      <AnnotationWorkspace
+        datasetName={task.datasetName}
+        internalRowId={task.internalRowId}
+        status={task.status}
+        detailFields={task.detailFields}
+        metrics={task.metrics}
+        values={values}
+        notes={notes}
+        disabled={task.status === "completed"}
+        onValueChange={(metricId, value) => {
+          setValues((current) => ({ ...current, [metricId]: value }));
+          markDirty();
+        }}
+        onNoteChange={(metricId, note) => {
+          setNotes((current) => ({ ...current, [metricId]: note }));
+          markDirty();
+        }}
+      />
 
       {(status || saving) && <div className="text-sm text-slate-600">{saving ? "Đang lưu nháp..." : status}</div>}
     </div>

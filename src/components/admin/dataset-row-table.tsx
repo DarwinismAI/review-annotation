@@ -66,8 +66,16 @@ export function DatasetRowTable({ rows, listFields, selectedRowIds, onSelectedRo
           {rows.map((row) => (
             <TableRow
               key={row.id}
-              className={onRowOpen ? "cursor-pointer hover:bg-slate-50" : undefined}
+              tabIndex={onRowOpen ? 0 : undefined}
+              className={onRowOpen ? "cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none" : undefined}
               onClick={() => onRowOpen?.(row)}
+              onKeyDown={(event) => {
+                if (!onRowOpen) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onRowOpen(row);
+                }
+              }}
             >
               <TableCell>
                 <input

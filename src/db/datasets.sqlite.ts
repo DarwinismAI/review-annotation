@@ -21,8 +21,12 @@ export const datasetImports = sqliteTable("dataset_imports", {
   sourceFilename: text("source_filename").notNull(),
   status: text("status").notNull(),
   rowCount: integer("row_count").notNull().default(0),
+  targetRowCount: integer("target_row_count"),
+  errorMessage: text("error_message"),
   missingFieldsReport: text("missing_fields_report", { mode: "json" }).$type<Array<{ path: string; missingRowIndexes: number[]; missingCount: number }>>(),
   createdBy: text("created_by").references(() => profiles.id, { onDelete: "set null" }),
+  startedAt: text("started_at"),
+  completedAt: text("completed_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -82,6 +86,8 @@ export const annotationAssignments = sqliteTable(
     metricKey: text("metric_key").notNull(),
     targetOverlap: integer("target_overlap").notNull(),
     status: text("status").notNull().default("assigned"),
+    skippedAt: text("skipped_at"),
+    skipCount: integer("skip_count").notNull().default(0),
     assignedAt: text("assigned_at").notNull().$defaultFn(() => new Date().toISOString()),
     completedAt: text("completed_at"),
     createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
@@ -91,6 +97,7 @@ export const annotationAssignments = sqliteTable(
     uniqueIndex("annotation_assignments_row_annotator_metric_unique").on(t.rowId, t.annotatorId, t.metricKey),
     index("annotation_assignments_dataset_idx").on(t.datasetId),
     index("annotation_assignments_annotator_idx").on(t.annotatorId),
+    index("annotation_assignments_group_queue_idx").on(t.annotatorId, t.assignmentRunId, t.status, t.skippedAt, t.assignedAt),
   ],
 );
 
@@ -110,5 +117,26 @@ export const annotationResults = sqliteTable(
   (t) => [
     uniqueIndex("annotation_results_assignment_metric_unique").on(t.assignmentId, t.metricId),
     index("annotation_results_row_metric_idx").on(t.rowId, t.metricId),
+  ],
+);
+
+export const annotationAdjudications = sqliteTable(
+  "annotation_adjudications",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    datasetId: text("dataset_id").notNull().references(() => datasets.id, { onDelete: "cascade" }),
+    rowId: text("row_id").notNull().references(() => datasetRows.id, { onDelete: "cascade" }),
+    metricId: text("metric_id").notNull().references(() => annotationMetrics.id, { onDelete: "cascade" }),
+    metricKey: text("metric_key").notNull(),
+    reviewerId: text("reviewer_id").references(() => profiles.id, { onDelete: "set null" }),
+    value: text("value"),
+    note: text("note"),
+    createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+    submittedAt: text("submitted_at").notNull().$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [
+    uniqueIndex("annotation_adjudications_row_metric_unique").on(t.rowId, t.metricId),
+    index("annotation_adjudications_dataset_row_idx").on(t.datasetId, t.rowId),
   ],
 );

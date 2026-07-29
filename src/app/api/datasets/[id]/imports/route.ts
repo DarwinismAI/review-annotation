@@ -167,8 +167,12 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
           sourceFilename: parsed.data.filename,
           status: firstRequestCompletesImport ? "completed" : "in_progress",
           rowCount: rows.length,
+          targetRowCount: totalImportRows,
+          errorMessage: null,
           missingFieldsReport: null,
           createdBy: session.user.id,
+          startedAt: now,
+          completedAt: firstRequestCompletesImport ? now : null,
           createdAt: now,
         });
       }
@@ -198,9 +202,18 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
         .where(and(eq(datasetRows.datasetId, datasetId), eq(datasetRows.importId, importId)));
       const isComplete = parsed.data.totalRows ? insertedRows >= parsed.data.totalRows : requestCompletesImport;
       completed = isComplete;
+      const importUpdate: Record<string, unknown> = {
+        status: isComplete ? "completed" : "in_progress",
+        rowCount: insertedRows,
+        completedAt: isComplete ? now : null,
+        errorMessage: null,
+      };
+      if (parsed.data.totalRows) {
+        importUpdate.targetRowCount = parsed.data.totalRows;
+      }
       await tx
         .update(datasetImports)
-        .set({ status: isComplete ? "completed" : "in_progress", rowCount: insertedRows })
+        .set(importUpdate)
         .where(eq(datasetImports.id, importId));
       if (isComplete) {
         await tx.update(datasets).set({ status: "ready", updatedAt: now }).where(eq(datasets.id, datasetId));
@@ -210,6 +223,10 @@ export const POST = requireAdmin(async (req: NextRequest, session, context) => {
     if (isInsertConflict(error)) {
       return NextResponse.json(importConflictPayload(), { status: 409 });
     }
+    await db
+      .update(datasetImports)
+      .set({ status: "failed", errorMessage: error instanceof Error ? error.message : String(error), completedAt: new Date() })
+      .where(eq(datasetImports.id, importId));
     throw error;
   }
 

@@ -1,4 +1,5 @@
 import { computeRowProgress, type RowAssignmentForAggregation } from "./aggregation";
+import { buildAdjudicationMap, type ReviewerAdjudication } from "./adjudication";
 import { projectFields, type JsonRecord } from "./import-validation";
 
 type AssignmentStatus = "assigned" | "in_review" | "completed" | string;
@@ -14,6 +15,10 @@ export interface RowExportMetric {
   id: string;
   key: string;
   label: string;
+  description?: string | null;
+  scaleJson?: { values: string[] };
+  required?: boolean | number;
+  sortOrder?: number;
 }
 
 export interface RowExportAssignment {
@@ -24,6 +29,11 @@ export interface RowExportAssignment {
   annotatorImage: string | null;
   status: AssignmentStatus;
   targetOverlap: number;
+  assignmentRunId?: string;
+  skippedAt?: string | Date | null;
+  skipCount?: number;
+  assignedAt?: string | Date;
+  completedAt?: string | Date | null;
 }
 
 export interface RowExportResult {
@@ -47,6 +57,7 @@ interface RowExportInput {
   results: RowExportResult[];
   metrics: RowExportMetric[];
   agreement: number | null;
+  adjudications?: ReviewerAdjudication[];
 }
 
 interface RowDetailInput extends RowExportInput {
@@ -66,9 +77,24 @@ export function buildRowDetail(input: RowDetailInput) {
     overlapLabel: progress.overlapLabel,
     missingCount: progress.missingCount,
     agreement: input.agreement,
+    metrics: input.metrics.map((metric) => ({
+      id: metric.id,
+      key: metric.key,
+      label: metric.label,
+      description: metric.description ?? null,
+      scale: metric.scaleJson,
+      required: Boolean(metric.required),
+      sortOrder: metric.sortOrder ?? 0,
+    })),
+    adjudication: buildAdjudicationMap(input.adjudications ?? []),
     assignments: input.assignments.map((assignment) => ({
       id: assignment.id,
       status: assignment.status,
+      assignmentRunId: assignment.assignmentRunId,
+      skippedAt: assignment.skippedAt ?? null,
+      skipCount: assignment.skipCount ?? 0,
+      assignedAt: assignment.assignedAt,
+      completedAt: assignment.completedAt ?? null,
       annotator: {
         id: assignment.annotatorId,
         name: assignment.annotatorName,
@@ -105,6 +131,7 @@ export function buildAnnotatedRow(input: RowExportInput) {
         metrics: buildMetricValues(assignment.id, input.metrics, input.results),
       })),
     },
+    adjudication: buildAdjudicationMap(input.adjudications ?? []),
   };
 }
 

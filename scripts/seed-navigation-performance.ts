@@ -47,8 +47,12 @@ CREATE TABLE IF NOT EXISTS dataset_imports (
   source_filename TEXT NOT NULL,
   status TEXT NOT NULL,
   row_count INTEGER NOT NULL DEFAULT 0,
+  target_row_count INTEGER,
+  error_message TEXT,
   missing_fields_report TEXT,
   created_by TEXT REFERENCES profiles(id) ON DELETE SET NULL,
+  started_at TEXT,
+  completed_at TEXT,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS dataset_rows (
@@ -94,6 +98,8 @@ CREATE TABLE IF NOT EXISTS annotation_assignments (
   metric_key TEXT NOT NULL,
   target_overlap INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'assigned',
+  skipped_at TEXT,
+  skip_count INTEGER NOT NULL DEFAULT 0,
   assigned_at TEXT NOT NULL,
   completed_at TEXT,
   created_at TEXT NOT NULL,
@@ -102,6 +108,7 @@ CREATE TABLE IF NOT EXISTS annotation_assignments (
 CREATE UNIQUE INDEX IF NOT EXISTS annotation_assignments_row_annotator_metric_unique ON annotation_assignments(row_id, annotator_id, metric_key);
 CREATE INDEX IF NOT EXISTS annotation_assignments_dataset_idx ON annotation_assignments(dataset_id);
 CREATE INDEX IF NOT EXISTS annotation_assignments_annotator_idx ON annotation_assignments(annotator_id);
+CREATE INDEX IF NOT EXISTS annotation_assignments_group_queue_idx ON annotation_assignments(annotator_id, assignment_run_id, status, skipped_at, assigned_at);
 CREATE TABLE IF NOT EXISTS annotation_results (
   id TEXT PRIMARY KEY,
   assignment_id TEXT NOT NULL REFERENCES annotation_assignments(id) ON DELETE CASCADE,
@@ -115,6 +122,21 @@ CREATE TABLE IF NOT EXISTS annotation_results (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS annotation_results_assignment_metric_unique ON annotation_results(assignment_id, metric_id);
 CREATE INDEX IF NOT EXISTS annotation_results_row_metric_idx ON annotation_results(row_id, metric_id);
+CREATE TABLE IF NOT EXISTS annotation_adjudications (
+  id TEXT PRIMARY KEY,
+  dataset_id TEXT NOT NULL REFERENCES datasets(id) ON DELETE CASCADE,
+  row_id TEXT NOT NULL REFERENCES dataset_rows(id) ON DELETE CASCADE,
+  metric_id TEXT NOT NULL REFERENCES annotation_metrics(id) ON DELETE CASCADE,
+  metric_key TEXT NOT NULL,
+  reviewer_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,
+  value TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  submitted_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS annotation_adjudications_row_metric_unique ON annotation_adjudications(row_id, metric_id);
+CREATE INDEX IF NOT EXISTS annotation_adjudications_dataset_row_idx ON annotation_adjudications(dataset_id, row_id);
 `;
 
 const schemaFingerprint = JSON.stringify([

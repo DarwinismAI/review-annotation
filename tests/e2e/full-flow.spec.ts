@@ -328,9 +328,12 @@ test.describe.serial("local-dev review annotation flows", () => {
     await expect(datasetRowsTable.getByRole("columnheader", { name: "input" })).toBeVisible();
     await expect(datasetRowsTable.getByRole("columnheader", { name: "output" })).toHaveCount(0);
     await datasetRowsTable.getByRole("row").filter({ hasText: "Mock safety request asking for a policy boundary." }).click();
-    await expect(page.getByRole("dialog", { name: "Row 1" })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Row 1" }).getByText("output")).toBeVisible();
-    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(new RegExp(`/admin/datasets/${dataset.id}/rows/`));
+    await expect(page.getByRole("heading", { name: "Row 1" })).toBeVisible();
+    await expect(page.getByText("output")).toBeVisible();
+    await assertPageHealth(page, testInfo, "admin-dataset-row-detail-desktop");
+    await page.getByRole("link", { name: "Quay lại dataset" }).click();
+    await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
     await assertPageHealth(page, testInfo, "admin-dataset-detail-desktop");
 
     const detailResponse = await page.request.get(`/api/datasets/${dataset.id}`);
@@ -371,25 +374,33 @@ test.describe.serial("local-dev review annotation flows", () => {
     const errors = collectRuntimeErrors(page);
     await login(page, "annotator@local.dev", "/annotator");
     await page.goto("/annotator/tasks");
-    await expect(page.getByRole("heading", { name: "Task của tôi" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Task được giao" })).toBeVisible();
     await expect(page.getByText(DATASET_NAME).first()).toBeVisible();
     await assertPageHealth(page, testInfo, "annotator-tasks-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealth(page, testInfo, "annotator-tasks-mobile");
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    const tasksResponse = await page.request.get("/api/annotator/tasks");
-    expect(tasksResponse.ok()).toBeTruthy();
-    const tasksPayload = await tasksResponse.json();
-    const task = tasksPayload.tasks.find((item: { datasetName: string; status: string }) => item.datasetName === DATASET_NAME && item.status !== "completed");
-    expect(task).toBeTruthy();
-    await page.goto(`/annotator/tasks/${task.id}`);
+    const taskGroupsResponse = await page.request.get("/api/annotator/task-groups");
+    expect(taskGroupsResponse.ok()).toBeTruthy();
+    const taskGroupsPayload = await taskGroupsResponse.json();
+    const taskGroup = taskGroupsPayload.taskGroups.find((item: { datasetName: string; status: string }) => item.datasetName === DATASET_NAME && item.status !== "completed");
+    expect(taskGroup).toBeTruthy();
+    expect(taskGroup.remainingCount).toBeGreaterThan(0);
+    await page.goto(`/annotator/tasks/${taskGroup.id}`);
     await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
 
-    const taskDetailResponse = await page.request.get(`/api/annotator/tasks/${task.id}`);
+    const nextTaskResponse = await page.request.get(`/api/annotator/task-groups/${taskGroup.id}/next`);
+    expect(nextTaskResponse.ok()).toBeTruthy();
+    const nextTaskPayload = await nextTaskResponse.json();
+    expect(nextTaskPayload).toMatchObject({ done: false });
+    expect(nextTaskPayload.nextTaskId).toEqual(expect.any(String));
+
+    const taskDetailResponse = await page.request.get(`/api/annotator/tasks/${nextTaskPayload.nextTaskId}`);
     expect(taskDetailResponse.ok()).toBeTruthy();
     const taskDetail = (await taskDetailResponse.json()).task;
     expect(taskDetail.metrics.length).toBeGreaterThan(0);
+    expect(taskDetail.assignmentRunId).toEqual(taskGroup.id);
 
     const passButtons = page.getByRole("button", { name: "Pass" });
     await expect(passButtons).toHaveCount(taskDetail.metrics.length);
@@ -401,7 +412,7 @@ test.describe.serial("local-dev review annotation flows", () => {
     }
 
     await expect(page.getByText(/Đã lưu/)).toBeVisible({ timeout: 8_000 });
-    const draftResponse = await page.request.get(`/api/annotator/tasks/${task.id}`);
+    const draftResponse = await page.request.get(`/api/annotator/tasks/${nextTaskPayload.nextTaskId}`);
     const draftTask = (await draftResponse.json()).task;
     for (let index = 0; index < taskDetail.metrics.length; index += 1) {
       const metricId = taskDetail.metrics[index].id;
@@ -419,8 +430,11 @@ test.describe.serial("local-dev review annotation flows", () => {
     }
 
     await page.getByRole("button", { name: "Submit" }).click();
-    await expect(page.getByText("Đã submit")).toBeVisible();
-    const completedResponse = await page.request.get(`/api/annotator/tasks/${task.id}`);
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/annotator/tasks/${nextTaskPayload.nextTaskId}`);
+      return ((await response.json()).task as { status: string }).status;
+    }).toBe("completed");
+    const completedResponse = await page.request.get(`/api/annotator/tasks/${nextTaskPayload.nextTaskId}`);
     const completedTask = (await completedResponse.json()).task;
     expect(completedTask.status).toBe("completed");
     for (let index = 0; index < taskDetail.metrics.length; index += 1) {
@@ -431,11 +445,14 @@ test.describe.serial("local-dev review annotation flows", () => {
       });
     }
     await page.reload();
-    await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
-    await expect(page.getByText("completed")).toBeVisible();
-    for (let index = 0; index < taskDetail.metrics.length; index += 1) {
-      await expect(page.getByRole("button", { name: "Pass" }).nth(index)).toHaveAttribute("aria-pressed", "true");
-      await expect(page.getByLabel("Ghi chú").nth(index)).toHaveValue(`Playwright note ${index + 1}`);
+    const nextAfterSubmitResponse = await page.request.get(`/api/annotator/task-groups/${taskGroup.id}/next`);
+    expect(nextAfterSubmitResponse.ok()).toBeTruthy();
+    const nextAfterSubmit = await nextAfterSubmitResponse.json();
+    if (nextAfterSubmit.done) {
+      await expect(page.getByText(/Task group hoàn tất|Hoàn thành|completed/i)).toBeVisible();
+    } else {
+      expect(nextAfterSubmit.nextTaskId).toEqual(expect.any(String));
+      await expect(page.getByRole("heading", { name: DATASET_NAME })).toBeVisible();
     }
     await assertPageHealth(page, testInfo, "annotator-task-detail-desktop");
     expect(errors).toEqual([]);

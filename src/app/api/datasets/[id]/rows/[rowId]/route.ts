@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { annotationAssignments, annotationMetrics, annotationResults, datasetRows, datasets } from "@/db/datasets";
+import { annotationAdjudications, annotationAssignments, annotationMetrics, annotationResults, datasetRows, datasets } from "@/db/datasets";
 import { profiles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
 import { computeAgreement } from "@/lib/datasets/aggregation";
@@ -12,6 +12,10 @@ type NullableAgreementResult = { rowId: string; metricId: string; value: string 
 
 function hasAgreementValue(result: NullableAgreementResult): result is AgreementResult {
   return result.value !== null;
+}
+
+function toIso(value: unknown): string {
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
 export const GET = requireAdmin(async (_req, _session, context) => {
@@ -41,6 +45,10 @@ export const GET = requireAdmin(async (_req, _session, context) => {
       id: annotationMetrics.id,
       key: annotationMetrics.key,
       label: annotationMetrics.label,
+      description: annotationMetrics.description,
+      scaleJson: annotationMetrics.scaleJson,
+      required: annotationMetrics.required,
+      sortOrder: annotationMetrics.sortOrder,
     })
     .from(annotationMetrics)
     .where(eq(annotationMetrics.datasetId, datasetId))
@@ -55,6 +63,11 @@ export const GET = requireAdmin(async (_req, _session, context) => {
       annotatorImage: profiles.image,
       status: annotationAssignments.status,
       targetOverlap: annotationAssignments.targetOverlap,
+      assignmentRunId: annotationAssignments.assignmentRunId,
+      skippedAt: annotationAssignments.skippedAt,
+      skipCount: annotationAssignments.skipCount,
+      assignedAt: annotationAssignments.assignedAt,
+      completedAt: annotationAssignments.completedAt,
     })
     .from(annotationAssignments)
     .innerJoin(profiles, eq(annotationAssignments.annotatorId, profiles.id))
@@ -72,7 +85,23 @@ export const GET = requireAdmin(async (_req, _session, context) => {
     })
     .from(annotationResults)
     .innerJoin(annotationAssignments, eq(annotationResults.assignmentId, annotationAssignments.id))
-    .where(and(eq(annotationResults.rowId, row.id), eq(annotationAssignments.status, "completed")));
+    .where(eq(annotationResults.rowId, row.id));
+
+  const adjudications = await db
+    .select({
+      rowId: annotationAdjudications.rowId,
+      metricId: annotationAdjudications.metricId,
+      metricKey: annotationAdjudications.metricKey,
+      reviewerId: annotationAdjudications.reviewerId,
+      reviewerName: profiles.name,
+      value: annotationAdjudications.value,
+      note: annotationAdjudications.note,
+      updatedAt: annotationAdjudications.updatedAt,
+    })
+    .from(annotationAdjudications)
+    .leftJoin(profiles, eq(annotationAdjudications.reviewerId, profiles.id))
+    .where(and(eq(annotationAdjudications.datasetId, datasetId), eq(annotationAdjudications.rowId, row.id)))
+    .orderBy(asc(annotationAdjudications.metricKey));
 
   const displayConfig = dataset.displayConfig as { listFields: string[]; detailFields: string[] };
 
@@ -83,7 +112,15 @@ export const GET = requireAdmin(async (_req, _session, context) => {
       assignments,
       results,
       metrics,
-      agreement: computeAgreement(results.filter(hasAgreementValue)),
+      agreement: computeAgreement(
+        results
+          .filter((result: any) => assignments.some((assignment: any) => assignment.id === result.assignmentId && assignment.status === "completed"))
+          .filter(hasAgreementValue),
+      ),
+      adjudications: adjudications.map((item: any) => ({
+        ...item,
+        updatedAt: toIso(item.updatedAt),
+      })),
     }),
   });
 });

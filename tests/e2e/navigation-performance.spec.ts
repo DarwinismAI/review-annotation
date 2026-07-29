@@ -102,7 +102,7 @@ test.describe("primary navigation responsiveness", () => {
   test("desktop annotator primary navigation marks the clicked item active within 100ms", async ({ page }) => {
     await login(page, "annotator@local.dev", "/annotator");
     await page.goto("/annotator/tasks");
-    await expect(page.getByRole("heading", { name: "Task của tôi" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Task được giao" })).toBeVisible();
 
     const desktopNav = page.locator("aside nav");
     await expect(desktopNav).toBeVisible();
@@ -130,7 +130,7 @@ test.describe("primary navigation responsiveness", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, "annotator@local.dev", "/annotator");
     await page.goto("/annotator/tasks");
-    await expect(page.getByRole("heading", { name: "Task của tôi" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Task được giao" })).toBeVisible();
 
     const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
     await expect(mobileNav).toBeVisible();

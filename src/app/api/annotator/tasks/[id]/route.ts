@@ -24,7 +24,9 @@ export const GET = requireAnnotator(async (_req, session, context) => {
     await db
       .select({
         id: annotationAssignments.id,
+        assignmentRunId: annotationAssignments.assignmentRunId,
         status: annotationAssignments.status,
+        skippedAt: annotationAssignments.skippedAt,
         annotatorId: annotationAssignments.annotatorId,
         rowId: annotationAssignments.rowId,
         datasetId: annotationAssignments.datasetId,
@@ -67,7 +69,9 @@ export const GET = requireAnnotator(async (_req, session, context) => {
   return NextResponse.json({
     task: {
       id: assignment.id,
+      assignmentRunId: assignment.assignmentRunId,
       status: assignment.status,
+      skippedAt: assignment.skippedAt,
       datasetName: assignment.datasetName,
       internalRowId: assignment.internalRowId,
       detailFields: projectFields(normalizeJson(assignment.rawJson), displayConfig.detailFields),

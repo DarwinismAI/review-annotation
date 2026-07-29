@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { annotationAssignments, annotationMetrics, annotationResults, datasetRows, datasets } from "@/db/datasets";
+import { annotationAdjudications, annotationAssignments, annotationMetrics, annotationResults, datasetRows, datasets } from "@/db/datasets";
 import { profiles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
 import { computeAgreement } from "@/lib/datasets/aggregation";
@@ -11,6 +11,16 @@ type AgreementResult = { rowId: string; metricId: string; value: string };
 type NullableAgreementResult = { rowId: string; metricId: string; value: string | null };
 type ExportDatasetRow = { id: string; internalRowId: number; sourceId: string | null; rawJson: unknown };
 type ExportMetric = { id: string; key: string; label: string };
+type ExportAdjudication = {
+  rowId: string;
+  metricId: string;
+  metricKey: string;
+  reviewerId: string | null;
+  reviewerName: string | null;
+  value: string | null;
+  note: string | null;
+  updatedAt: string;
+};
 type ExportAssignment = {
   id: string;
   rowId: string;
@@ -31,6 +41,10 @@ type ExportResult = {
 
 function hasAgreementValue<T extends NullableAgreementResult>(result: T): result is T & AgreementResult {
   return result.value !== null;
+}
+
+function toIso(value: unknown): string {
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
 export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
@@ -100,6 +114,27 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
           .where(and(eq(annotationAssignments.datasetId, datasetId), eq(annotationAssignments.status, "completed")))
       : [];
 
+  const adjudications: ExportAdjudication[] =
+    rows.length > 0
+      ? (
+          await db
+            .select({
+              rowId: annotationAdjudications.rowId,
+              metricId: annotationAdjudications.metricId,
+              metricKey: annotationAdjudications.metricKey,
+              reviewerId: annotationAdjudications.reviewerId,
+              reviewerName: profiles.name,
+              value: annotationAdjudications.value,
+              note: annotationAdjudications.note,
+              updatedAt: annotationAdjudications.updatedAt,
+            })
+            .from(annotationAdjudications)
+            .leftJoin(profiles, eq(annotationAdjudications.reviewerId, profiles.id))
+            .where(eq(annotationAdjudications.datasetId, datasetId))
+            .orderBy(asc(annotationAdjudications.rowId), asc(annotationAdjudications.metricKey))
+        ).map((item: any) => ({ ...item, updatedAt: toIso(item.updatedAt) }))
+      : [];
+
   const assignmentsByRow = new Map<string, ExportAssignment[]>();
   for (const assignment of assignments) {
     assignmentsByRow.set(assignment.rowId, [...(assignmentsByRow.get(assignment.rowId) ?? []), assignment]);
@@ -108,6 +143,11 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const resultsByRow = new Map<string, ExportResult[]>();
   for (const result of results) {
     resultsByRow.set(result.rowId, [...(resultsByRow.get(result.rowId) ?? []), result]);
+  }
+
+  const adjudicationsByRow = new Map<string, ExportAdjudication[]>();
+  for (const adjudication of adjudications) {
+    adjudicationsByRow.set(adjudication.rowId, [...(adjudicationsByRow.get(adjudication.rowId) ?? []), adjudication]);
   }
 
   const body = rows
@@ -120,6 +160,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
           results: rowResults,
           metrics,
           agreement: computeAgreement(rowResults.filter(hasAgreementValue)),
+          adjudications: adjudicationsByRow.get(row.id) ?? [],
         }),
       );
     })

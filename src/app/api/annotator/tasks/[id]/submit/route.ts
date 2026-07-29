@@ -55,9 +55,9 @@ export const POST = requireAnnotator(async (req: NextRequest, session, context) 
 
     await tx
       .update(annotationAssignments)
-      .set({ status: "completed", completedAt: now, updatedAt: now })
+      .set({ status: "completed", completedAt: now, skippedAt: null, updatedAt: now })
       .where(eq(annotationAssignments.id, assignmentId));
   });
 
-  return NextResponse.json({ ok: true, status: "completed" });
+  return NextResponse.json({ ok: true, status: "completed", assignmentRunId: assignment.assignmentRunId });
 });

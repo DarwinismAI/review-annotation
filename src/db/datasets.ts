@@ -21,8 +21,12 @@ export const datasetImports = pgTable("dataset_imports", {
   sourceFilename: text("source_filename").notNull(),
   status: text("status").notNull(),
   rowCount: integer("row_count").notNull().default(0),
+  targetRowCount: integer("target_row_count"),
+  errorMessage: text("error_message"),
   missingFieldsReport: jsonb("missing_fields_report").$type<Array<{ path: string; missingRowIndexes: number[]; missingCount: number }>>(),
   createdBy: text("created_by").references(() => profiles.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -82,6 +86,8 @@ export const annotationAssignments = pgTable(
     metricKey: text("metric_key").notNull(),
     targetOverlap: integer("target_overlap").notNull(),
     status: text("status").notNull().default("assigned"),
+    skippedAt: timestamp("skipped_at", { withTimezone: true }),
+    skipCount: integer("skip_count").notNull().default(0),
     assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -91,6 +97,7 @@ export const annotationAssignments = pgTable(
     unique("annotation_assignments_row_annotator_metric_unique").on(t.rowId, t.annotatorId, t.metricKey),
     index("annotation_assignments_dataset_idx").on(t.datasetId),
     index("annotation_assignments_annotator_idx").on(t.annotatorId),
+    index("annotation_assignments_group_queue_idx").on(t.annotatorId, t.assignmentRunId, t.status, t.skippedAt, t.assignedAt),
   ],
 );
 
@@ -110,5 +117,26 @@ export const annotationResults = pgTable(
   (t) => [
     unique("annotation_results_assignment_metric_unique").on(t.assignmentId, t.metricId),
     index("annotation_results_row_metric_idx").on(t.rowId, t.metricId),
+  ],
+);
+
+export const annotationAdjudications = pgTable(
+  "annotation_adjudications",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    datasetId: text("dataset_id").notNull().references(() => datasets.id, { onDelete: "cascade" }),
+    rowId: text("row_id").notNull().references(() => datasetRows.id, { onDelete: "cascade" }),
+    metricId: text("metric_id").notNull().references(() => annotationMetrics.id, { onDelete: "cascade" }),
+    metricKey: text("metric_key").notNull(),
+    reviewerId: text("reviewer_id").references(() => profiles.id, { onDelete: "set null" }),
+    value: text("value"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("annotation_adjudications_row_metric_unique").on(t.rowId, t.metricId),
+    index("annotation_adjudications_dataset_row_idx").on(t.datasetId, t.rowId),
   ],
 );
