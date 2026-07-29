@@ -1,0 +1,66 @@
+name: Import production dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate JSONL only; set false to import into PROD DB"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      dataset_name:
+        description: "Production dataset name"
+        required: true
+        default: "Humanity Output Data"
+      chunk_size:
+        description: "Insert chunk size"
+        required: true
+        default: "500"
+
+jobs:
+  import-prod-dataset:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL || secrets.DATABASE_URL || secrets.PROD_POSTGRES_URL || secrets.POSTGRES_URL }}
+      OUTPUT_DATA_JSONL_URL: ${{ secrets.PROD_OUTPUT_DATA_JSONL_URL }}
+      OUTPUT_DATA_JSONL_B64: ${{ secrets.PROD_OUTPUT_DATA_JSONL_B64 }}
+      DRY_RUN: ${{ github.event.inputs.dry_run == 'false' && '0' || '1' }}
+      DATASET_NAME: ${{ github.event.inputs.dataset_name }}
+      IMPORT_CHUNK_SIZE: ${{ github.event.inputs.chunk_size }}
+      ALLOW_PROD_DATASET_IMPORT: ${{ github.event.inputs.dry_run == 'false' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Ensure production safety rubric metrics
+        run: pnpm exec tsx scripts/apply-safety-domain-constraints.ts
+
+      - name: Materialize JSONL from secret source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${OUTPUT_DATA_JSONL_URL:-}" ]; then
+            curl --fail --location --silent --output "$RUNNER_TEMP/output_data.jsonl" "$OUTPUT_DATA_JSONL_URL"
+          elif [ -n "${OUTPUT_DATA_JSONL_B64:-}" ]; then
+            printf '%s' "$OUTPUT_DATA_JSONL_B64" | base64 -d > "$RUNNER_TEMP/output_data.jsonl"
+          else
+            echo "PROD_OUTPUT_DATA_JSONL_URL secret is required"
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/output_data.jsonl"
+
+      - name: Validate or import production dataset
+        run: pnpm exec tsx scripts/import-output-data-prod.ts --file "$RUNNER_TEMP/output_data.jsonl"

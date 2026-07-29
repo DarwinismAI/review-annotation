@@ -29,6 +29,8 @@ local-build.db
 # Uploads
 uploads/
 seed_data/
+*.jsonl
+*.ndjson
 
 # Local-only seed helpers
 scripts/seed-humanity-dataset-local.ts
