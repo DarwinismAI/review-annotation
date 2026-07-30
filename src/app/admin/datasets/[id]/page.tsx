@@ -11,6 +11,7 @@ import { DatasetAppendImportPanel } from "@/components/admin/dataset-append-impo
 import { DatasetAssignModal } from "@/components/admin/dataset-assign-modal";
 import { DatasetImportJobsPanel } from "@/components/admin/dataset-import-jobs-panel";
 import { DatasetRowTable, type DatasetRow } from "@/components/admin/dataset-row-table";
+import { readJsonResponse } from "@/hooks/use-json-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface DatasetDetail {
@@ -58,7 +59,7 @@ export default function DatasetDetailPage() {
     setLoadError("");
     try {
       const response = await fetch(`/api/datasets/${datasetId}`, { cache: "no-store" });
-      const payload = await response.json();
+      const payload = (await readJsonResponse(response)) as DatasetDetail & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Không tải được dataset");
       setDetail(payload);
     } catch (err) {
@@ -81,7 +82,7 @@ export default function DatasetDetailPage() {
 
     try {
       const response = await fetch(`/api/datasets/${datasetId}/rows?${params.toString()}`, { cache: "no-store" });
-      const payload = (await response.json()) as RowsPayload & { error?: string };
+      const payload = (await readJsonResponse(response)) as RowsPayload & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Không tải được rows");
       setRows(payload.rows ?? []);
       setRowTotal(payload.total ?? payload.rows?.length ?? 0);
