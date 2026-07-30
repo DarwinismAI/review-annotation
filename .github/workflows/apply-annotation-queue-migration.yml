@@ -1,0 +1,26 @@
+name: Apply annotation queue migration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply-annotation-queue-migration:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL || secrets.DATABASE_URL || secrets.PROD_POSTGRES_URL || secrets.POSTGRES_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply annotation queue production migration
+        run: pnpm exec tsx scripts/apply-annotation-queue-migration.ts

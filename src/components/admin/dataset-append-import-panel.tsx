@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { invalidateFastResource } from "@/hooks/use-fast-resource";
 import { readJsonResponse } from "@/hooks/use-json-resource";
 import { collectExtraFieldsResponsive, parseDatasetFile, validateAppendRowsResponsive } from "@/lib/datasets/client-file-import";
 import { CLIENT_IMPORT_CHUNK_SIZE, MAX_DATASET_IMPORT_ROWS } from "@/lib/datasets/import-limits";
@@ -113,6 +114,8 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
       setRows([]);
       setFilename("");
       setRowCount(null);
+      invalidateFastResource("/api/datasets");
+      invalidateFastResource(`/api/datasets/${datasetId}`);
       onImported();
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Import thất bại, vui lòng thử lại", "error");

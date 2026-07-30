@@ -10,6 +10,7 @@ import "./import-jobs.test";
 import "./json-resource.test";
 import "./fast-resource-contract.test";
 import "./api-list-contracts.test";
+import "./annotation-queue-migration.test";
 import "./datasets-route.test";
 
 console.log("dataset helper tests passed");

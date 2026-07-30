@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { invalidateFastResource } from "@/hooks/use-fast-resource";
 import { DOMAIN_KEYS, labelForDomain } from "@/lib/labels";
 import { defaultPassFailScale, type PassFailScaleItem } from "@/lib/rubrics/pass-fail-scale";
 
@@ -68,6 +69,7 @@ export default function RubricForm({ initialData }: RubricFormProps) {
       }
 
       showToast("Đã lưu metric.");
+      invalidateFastResource("/api/rubrics");
       setTimeout(() => router.push("/admin/rubrics"), 800);
     } catch {
       setError("Đã xảy ra lỗi, vui lòng thử lại");

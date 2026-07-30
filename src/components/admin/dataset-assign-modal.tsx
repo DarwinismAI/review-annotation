@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { invalidateFastResource } from "@/hooks/use-fast-resource";
 import { readJsonResponse } from "@/hooks/use-json-resource";
 
 interface DatasetMetric {
@@ -106,6 +107,7 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
       }
       setStatusTone((payload.createdAssignments ?? 0) > 0 ? "success" : "neutral");
       setStatus(payload.message ?? `Đã tạo ${payload.createdAssignments} task`);
+      invalidateFastResource("/api/annotator/task-groups");
       onAssigned();
     } catch {
       setStatusTone("error");
