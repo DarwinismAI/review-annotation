@@ -109,17 +109,27 @@ export const GET = requireAdmin(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const page = Math.max(Number(searchParams.get("page") ?? 1) || 1, 1);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50) || 50, 1), 200);
+  const includeSummary = searchParams.get("summary") === "1";
+  const includeImportCounts = searchParams.get("counts") === "1";
   const offset = (page - 1) * pageSize;
 
   const [{ total: datasetTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasets);
-  const [{ total: rowTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasetRows);
-  const [{ total: metricTotal } = { total: 0 }] = await db.select({ total: count() }).from(annotationMetrics);
-  const statusCounts = await db.select({ status: datasets.status, total: count() }).from(datasets).groupBy(datasets.status);
 
-  const pagedDatasets = await db.select().from(datasets).orderBy(desc(datasets.createdAt)).limit(pageSize).offset(offset);
+  const pagedDatasets = await db
+    .select({
+      id: datasets.id,
+      name: datasets.name,
+      domain: datasets.domain,
+      status: datasets.status,
+      createdAt: datasets.createdAt,
+    })
+    .from(datasets)
+    .orderBy(desc(datasets.createdAt))
+    .limit(pageSize)
+    .offset(offset);
   const datasetIds = pagedDatasets.map((dataset: any) => dataset.id);
   const rowCounts =
-    datasetIds.length > 0
+    includeImportCounts && datasetIds.length > 0
       ? await db
           .select({ datasetId: datasetRows.datasetId, total: count() })
           .from(datasetRows)
@@ -127,7 +137,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
           .groupBy(datasetRows.datasetId)
       : [];
   const metricCounts =
-    datasetIds.length > 0
+    includeImportCounts && datasetIds.length > 0
       ? await db
           .select({ datasetId: annotationMetrics.datasetId, total: count() })
           .from(annotationMetrics)
@@ -135,7 +145,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
           .groupBy(annotationMetrics.datasetId)
       : [];
   let allImports: Array<{ datasetId: string; sourceFilename: string }> = [];
-  if (datasetIds.length > 0) {
+  if (includeImportCounts && datasetIds.length > 0) {
     const latestImportTimes = db
       .select({
         datasetId: datasetImports.datasetId,
@@ -166,8 +176,29 @@ export const GET = requireAdmin(async (req: NextRequest) => {
     if (!latestImport.has(item.datasetId)) latestImport.set(item.datasetId, item.sourceFilename);
   }
 
-  const statusCount = new Map<string, number>();
-  for (const status of statusCounts) statusCount.set(status.status, status.total);
+  let summary:
+    | {
+        datasetCount: number;
+        rowCount: number;
+        metricCount: number;
+        readyCount: number;
+        importingCount: number;
+      }
+    | undefined;
+  if (includeSummary) {
+    const [{ total: rowTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasetRows);
+    const [{ total: metricTotal } = { total: 0 }] = await db.select({ total: count() }).from(annotationMetrics);
+    const statusCounts = await db.select({ status: datasets.status, total: count() }).from(datasets).groupBy(datasets.status);
+    const statusCount = new Map<string, number>();
+    for (const status of statusCounts) statusCount.set(status.status, status.total);
+    summary = {
+      datasetCount: datasetTotal,
+      rowCount: rowTotal,
+      metricCount: metricTotal,
+      readyCount: statusCount.get("ready") ?? 0,
+      importingCount: statusCount.get("importing") ?? 0,
+    };
+  }
 
   return NextResponse.json({
     datasets: pagedDatasets.map((dataset: any) => ({
@@ -183,13 +214,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
     page,
     pageSize,
     total: datasetTotal,
-    summary: {
-      datasetCount: datasetTotal,
-      rowCount: rowTotal,
-      metricCount: metricTotal,
-      readyCount: statusCount.get("ready") ?? 0,
-      importingCount: statusCount.get("importing") ?? 0,
-    },
+    ...(summary ? { summary } : {}),
   });
 });
 

@@ -27,6 +27,19 @@ function getErrorMessage(payload: unknown): string {
   return "Không tải được dữ liệu";
 }
 
+export async function readJsonResponse(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text.trim()) {
+    throw new Error("Không tải được dữ liệu từ máy chủ");
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error("Không tải được dữ liệu từ máy chủ");
+  }
+}
+
 export function useJsonResource<T>(url: string, initialData: T): JsonResourceState<T> {
   const [data, setData] = useState<T>(initialData);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +59,12 @@ export function useJsonResource<T>(url: string, initialData: T): JsonResourceSta
           headers: { Accept: "application/json" },
           signal: controller.signal,
         });
-        const payload = await response.json().catch(() => null);
+        let payload: unknown = null;
+        try {
+          payload = await readJsonResponse(response);
+        } catch (parseError) {
+          if (response.ok) throw parseError;
+        }
         if (!response.ok) {
           throw new Error(getErrorMessage(payload));
         }

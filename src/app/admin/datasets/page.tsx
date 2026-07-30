@@ -32,7 +32,7 @@ const PAGE_SIZE = 50;
 
 export default function AdminDatasetsPage() {
   const [page, setPage] = useState(1);
-  const { data, error, loading } = useJsonResource<DatasetsPayload>(`/api/datasets?page=${page}&pageSize=${PAGE_SIZE}`, EMPTY_DATASETS);
+  const { data, error, loading } = useJsonResource<DatasetsPayload>(`/api/datasets?page=${page}&pageSize=${PAGE_SIZE}&counts=1`, EMPTY_DATASETS);
   const datasets = data.datasets ?? [];
   const total = data.total ?? datasets.length;
   const totalPages = Math.max(Math.ceil(total / (data.pageSize ?? PAGE_SIZE)), 1);

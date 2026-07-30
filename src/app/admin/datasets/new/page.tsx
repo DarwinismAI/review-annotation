@@ -61,7 +61,7 @@ export default function NewDatasetPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/datasets?page=1&pageSize=1", { cache: "no-store" })
+    fetch("/api/datasets?page=1&pageSize=1&summary=1", { cache: "no-store" })
       .then((response) => response.json())
       .then((payload) => {
         if (!cancelled) setActiveImportCount(payload.summary?.importingCount ?? 0);

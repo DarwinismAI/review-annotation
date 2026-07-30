@@ -56,7 +56,7 @@ const EMPTY_DATASETS: DatasetsPayload = { datasets: [], summary: EMPTY_SUMMARY }
 const EMPTY_MEMBERS: MembersPayload = { members: [] };
 
 export default function AdminDashboardPage() {
-  const datasetsResource = useJsonResource<DatasetsPayload>("/api/datasets?page=1&pageSize=5", EMPTY_DATASETS);
+  const datasetsResource = useJsonResource<DatasetsPayload>("/api/datasets?page=1&pageSize=5&summary=1&counts=1", EMPTY_DATASETS);
   const membersResource = useJsonResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
   const datasets = datasetsResource.data.datasets ?? [];
   const members = membersResource.data.members ?? [];
