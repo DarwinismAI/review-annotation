@@ -45,57 +45,60 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const completion = searchParams.get("completion") ?? "";
   const fieldMode = searchParams.get("fields") === "detail" ? "detail" : "list";
 
-  const [dataset] = await db
-    .select({
-      id: datasets.id,
-      displayConfig: datasets.displayConfig,
-    })
-    .from(datasets)
-    .where(eq(datasets.id, datasetId));
+  const [datasetResult, totalResult, pageRowResult] = await Promise.all([
+    db
+      .select({
+        id: datasets.id,
+        displayConfig: datasets.displayConfig,
+      })
+      .from(datasets)
+      .where(eq(datasets.id, datasetId)),
+    db.select({ total: count() }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId)),
+    db
+      .select({
+        id: datasetRows.id,
+        internalRowId: datasetRows.internalRowId,
+        rawJson: datasetRows.rawJson,
+      })
+      .from(datasetRows)
+      .where(eq(datasetRows.datasetId, datasetId))
+      .orderBy(asc(datasetRows.internalRowId))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize),
+  ]);
+  const [dataset] = datasetResult;
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
-  const [{ total }] = await db.select({ total: count() }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId));
-  const pageRows: DatasetRowListRecord[] = await db
-    .select({
-      id: datasetRows.id,
-      internalRowId: datasetRows.internalRowId,
-      rawJson: datasetRows.rawJson,
-    })
-    .from(datasetRows)
-    .where(eq(datasetRows.datasetId, datasetId))
-    .orderBy(asc(datasetRows.internalRowId))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+  const [{ total }] = totalResult;
+  const pageRows = pageRowResult as DatasetRowListRecord[];
   const rowIds = pageRows.map((row) => row.id);
 
-  const assignmentRows: DatasetRowAssignmentRecord[] =
+  const [assignmentRows, resultRows]: [DatasetRowAssignmentRecord[], DatasetRowResultRecord[]] =
     rowIds.length > 0
-      ? await db
-          .select({
-            rowId: annotationAssignments.rowId,
-            annotatorId: annotationAssignments.annotatorId,
-            annotatorName: profiles.name,
-            annotatorImage: profiles.image,
-            status: annotationAssignments.status,
-            targetOverlap: annotationAssignments.targetOverlap,
-          })
-          .from(annotationAssignments)
-          .innerJoin(profiles, eq(annotationAssignments.annotatorId, profiles.id))
-          .where(and(eq(annotationAssignments.datasetId, datasetId), inArray(annotationAssignments.rowId, rowIds)))
-      : [];
-
-  const resultRows: DatasetRowResultRecord[] =
-    rowIds.length > 0
-      ? await db
-          .select({
-            rowId: annotationResults.rowId,
-            metricId: annotationResults.metricId,
-            value: annotationResults.value,
-          })
-          .from(annotationResults)
-          .innerJoin(annotationAssignments, eq(annotationResults.assignmentId, annotationAssignments.id))
-          .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationAssignments.status, "completed")))
-      : [];
+      ? await Promise.all([
+          db
+            .select({
+              rowId: annotationAssignments.rowId,
+              annotatorId: annotationAssignments.annotatorId,
+              annotatorName: profiles.name,
+              annotatorImage: profiles.image,
+              status: annotationAssignments.status,
+              targetOverlap: annotationAssignments.targetOverlap,
+            })
+            .from(annotationAssignments)
+            .innerJoin(profiles, eq(annotationAssignments.annotatorId, profiles.id))
+            .where(and(eq(annotationAssignments.datasetId, datasetId), inArray(annotationAssignments.rowId, rowIds))),
+          db
+            .select({
+              rowId: annotationResults.rowId,
+              metricId: annotationResults.metricId,
+              value: annotationResults.value,
+            })
+            .from(annotationResults)
+            .innerJoin(annotationAssignments, eq(annotationResults.assignmentId, annotationAssignments.id))
+            .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationAssignments.status, "completed"))),
+        ])
+      : [[], []];
 
   const assignmentsByRow = new Map<string, DatasetRowAssignmentRecord[]>();
   for (const assignment of assignmentRows) {

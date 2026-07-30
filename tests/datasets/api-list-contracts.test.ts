@@ -11,6 +11,9 @@ const members = readFileSync("src/app/api/admin/members/route.ts", "utf8");
 assert.doesNotMatch(datasets, /db\.select\(\)\.from\(datasets\)/);
 assert.match(datasets, /pageSize/);
 assert.match(datasets, /summary/);
+assert.match(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*total:\s*count\(\)/);
+assert.match(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*datasetId:\s*datasetRows\.datasetId/);
+assert.match(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*total:\s*count\(\)\s*\}\)\.from\(datasetRows\)/);
 
 assert.doesNotMatch(taskGroups, /buildTaskGroups/);
 assert.match(taskGroups, /\.groupBy\(/);
@@ -25,6 +28,8 @@ assert.match(datasetRows, /fields.*list|listFields/);
 assert.match(datasetRows, /id:\s*datasets\.id/);
 assert.match(datasetRows, /displayConfig:\s*datasets\.displayConfig/);
 assert.doesNotMatch(datasetRows, /db\.select\(\)\.from\(datasets\)/);
+assert.match(datasetRows, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*id:\s*datasets\.id/);
+assert.match(datasetRows, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*rowId:\s*annotationAssignments\.rowId/);
 
 assert.doesNotMatch(rubrics, /db\.select\(\)\.from\(rubrics\)/);
 assert.doesNotMatch(rubrics, /Promise\.all/);

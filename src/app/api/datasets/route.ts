@@ -113,37 +113,25 @@ export const GET = requireAdmin(async (req: NextRequest) => {
   const includeImportCounts = searchParams.get("counts") === "1";
   const offset = (page - 1) * pageSize;
 
-  const [{ total: datasetTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasets);
-
-  const pagedDatasets = await db
-    .select({
-      id: datasets.id,
-      name: datasets.name,
-      domain: datasets.domain,
-      status: datasets.status,
-      createdAt: datasets.createdAt,
-    })
-    .from(datasets)
-    .orderBy(desc(datasets.createdAt))
-    .limit(pageSize)
-    .offset(offset);
+  const [datasetTotalRows, pagedDatasets] = await Promise.all([
+    db.select({ total: count() }).from(datasets),
+    db
+      .select({
+        id: datasets.id,
+        name: datasets.name,
+        domain: datasets.domain,
+        status: datasets.status,
+        createdAt: datasets.createdAt,
+      })
+      .from(datasets)
+      .orderBy(desc(datasets.createdAt))
+      .limit(pageSize)
+      .offset(offset),
+  ]);
+  const [{ total: datasetTotal } = { total: 0 }] = datasetTotalRows;
   const datasetIds = pagedDatasets.map((dataset: any) => dataset.id);
-  const rowCounts =
-    includeImportCounts && datasetIds.length > 0
-      ? await db
-          .select({ datasetId: datasetRows.datasetId, total: count() })
-          .from(datasetRows)
-          .where(inArray(datasetRows.datasetId, datasetIds))
-          .groupBy(datasetRows.datasetId)
-      : [];
-  const metricCounts =
-    includeImportCounts && datasetIds.length > 0
-      ? await db
-          .select({ datasetId: annotationMetrics.datasetId, total: count() })
-          .from(annotationMetrics)
-          .where(inArray(annotationMetrics.datasetId, datasetIds))
-          .groupBy(annotationMetrics.datasetId)
-      : [];
+  let rowCounts: Array<{ datasetId: string; total: number }> = [];
+  let metricCounts: Array<{ datasetId: string; total: number }> = [];
   let allImports: Array<{ datasetId: string; sourceFilename: string }> = [];
   if (includeImportCounts && datasetIds.length > 0) {
     const latestImportTimes = db
@@ -155,14 +143,26 @@ export const GET = requireAdmin(async (req: NextRequest) => {
       .where(inArray(datasetImports.datasetId, datasetIds))
       .groupBy(datasetImports.datasetId)
       .as("latest_import_times");
-    allImports = await db
-      .select({ datasetId: datasetImports.datasetId, sourceFilename: datasetImports.sourceFilename })
-      .from(datasetImports)
-      .innerJoin(
-        latestImportTimes,
-        and(eq(datasetImports.datasetId, latestImportTimes.datasetId), eq(datasetImports.createdAt, latestImportTimes.latestCreatedAt)),
-      )
-      .orderBy(desc(datasetImports.createdAt));
+    [rowCounts, metricCounts, allImports] = await Promise.all([
+      db
+        .select({ datasetId: datasetRows.datasetId, total: count() })
+        .from(datasetRows)
+        .where(inArray(datasetRows.datasetId, datasetIds))
+        .groupBy(datasetRows.datasetId),
+      db
+        .select({ datasetId: annotationMetrics.datasetId, total: count() })
+        .from(annotationMetrics)
+        .where(inArray(annotationMetrics.datasetId, datasetIds))
+        .groupBy(annotationMetrics.datasetId),
+      db
+        .select({ datasetId: datasetImports.datasetId, sourceFilename: datasetImports.sourceFilename })
+        .from(datasetImports)
+        .innerJoin(
+          latestImportTimes,
+          and(eq(datasetImports.datasetId, latestImportTimes.datasetId), eq(datasetImports.createdAt, latestImportTimes.latestCreatedAt)),
+        )
+        .orderBy(desc(datasetImports.createdAt)),
+    ]);
   }
 
   const rowCount = new Map<string, number>();
@@ -186,9 +186,13 @@ export const GET = requireAdmin(async (req: NextRequest) => {
       }
     | undefined;
   if (includeSummary) {
-    const [{ total: rowTotal } = { total: 0 }] = await db.select({ total: count() }).from(datasetRows);
-    const [{ total: metricTotal } = { total: 0 }] = await db.select({ total: count() }).from(annotationMetrics);
-    const statusCounts = await db.select({ status: datasets.status, total: count() }).from(datasets).groupBy(datasets.status);
+    const [rowTotalRows, metricTotalRows, statusCounts] = await Promise.all([
+      db.select({ total: count() }).from(datasetRows),
+      db.select({ total: count() }).from(annotationMetrics),
+      db.select({ status: datasets.status, total: count() }).from(datasets).groupBy(datasets.status),
+    ]);
+    const [{ total: rowTotal } = { total: 0 }] = rowTotalRows;
+    const [{ total: metricTotal } = { total: 0 }] = metricTotalRows;
     const statusCount = new Map<string, number>();
     for (const status of statusCounts) statusCount.set(status.status, status.total);
     summary = {
