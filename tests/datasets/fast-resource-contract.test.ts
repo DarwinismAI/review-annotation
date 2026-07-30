@@ -9,6 +9,7 @@ const appendPanel = readFileSync("src/components/admin/dataset-append-import-pan
 const assignModal = readFileSync("src/components/admin/dataset-assign-modal.tsx", "utf8");
 const dashboardPage = readFileSync("src/app/admin/dashboard/page.tsx", "utf8");
 const dashboardDataRegion = readFileSync("src/app/admin/dashboard/dashboard-data-region.tsx", "utf8");
+const appNavigation = readFileSync("src/components/app-navigation.tsx", "utf8");
 
 assert.match(source, /const DEFAULT_TTL_MS\s*=\s*30000/);
 assert.match(source, /type FastResourceStatus\s*=\s*"idle"\s*\|\s*"loading"\s*\|\s*"ready"\s*\|\s*"refreshing"\s*\|\s*"error"/);
@@ -49,3 +50,9 @@ assert.match(dashboardDataRegion, /datasetsResource\.isRefreshing/);
 assert.match(dashboardDataRegion, /Đang cập nhật/);
 assert.match(dashboardDataRegion, /error/);
 assert.doesNotMatch(dashboardDataRegion, /localStorage|document\.|<script|dangerouslySetInnerHTML/);
+
+assert.match(appNavigation, /\{\s*href:\s*"\/admin\/dashboard",\s*label:\s*"Tổng quan"/);
+assert.match(appNavigation, /prefetch=\{href === "\/admin\/dashboard" \? true : undefined\}/);
+assert.match(appNavigation, /onFocus=\{\(\) => router\.prefetch\(href\)\}/);
+assert.match(appNavigation, /onMouseEnter=\{\(\) => router\.prefetch\(href\)\}/);
+assert.doesNotMatch(appNavigation, /setInterval|setTimeout|(^|[^\w.])fetch\(/);

@@ -78,6 +78,7 @@ export function AppNavigation({ activePath, layout, onOptimisticNavigate, varian
           <Link
             key={href}
             href={href}
+            prefetch={href === "/admin/dashboard" ? true : undefined}
             onClick={(event) => {
               if (isModifiedClick(event)) return;
               onOptimisticNavigate(href);
