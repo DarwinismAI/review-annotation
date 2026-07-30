@@ -10,6 +10,8 @@ const BLOCKED_DEPLOYMENT_OWNER = "cxzharry-8988s-projects";
 interface NavigationTarget {
   label: string;
   heading: string;
+  previousHeading?: string;
+  routeShellTestId?: string;
 }
 
 interface NavigationTiming {
@@ -26,7 +28,7 @@ const ADMIN_NAVIGATION_TARGETS: NavigationTarget[] = [
   { label: "Datasets", heading: "Datasets" },
   { label: "Thành viên", heading: "Thành viên" },
   { label: "Rubric", heading: "Quản lý metrics" },
-  { label: "Tổng quan", heading: "Tổng quan" },
+  { label: "Tổng quan", heading: "Tổng quan", previousHeading: "Quản lý metrics", routeShellTestId: "dashboard-route-shell" },
 ];
 
 function assertApprovedDevTarget() {
@@ -83,12 +85,23 @@ async function measureNav(page: Page, target: NavigationTarget): Promise<Navigat
       observer.observe(targetLink, { attributes: true, attributeFilter: ["aria-current"] });
     });
   }, handle);
-  const routeReadyPromise = page.evaluate((expectedHeading) => {
+  const routeReadyPromise = page.evaluate((targetInfo) => {
     return new Promise<number>((resolve, reject) => {
       let clickStart = 0;
       let observer: MutationObserver | null = null;
+      const visibleTextMatches = (element: Element, text: string) => {
+        const style = window.getComputedStyle(element);
+        return style.visibility !== "hidden" && style.display !== "none" && element.textContent?.trim() === text;
+      };
       const headingMatches = () =>
-        Array.from(document.querySelectorAll("h1,h2,[role='heading']")).some((element) => element.textContent?.trim() === expectedHeading);
+        Array.from(document.querySelectorAll("h1,h2,[role='heading']")).some((element) => visibleTextMatches(element, targetInfo.heading));
+      const previousHeadingStillVisible = () =>
+        targetInfo.previousHeading
+          ? Array.from(document.querySelectorAll("h1,h2,[role='heading']")).some((element) => visibleTextMatches(element, targetInfo.previousHeading!))
+          : false;
+      const routeShellMatches = () =>
+        targetInfo.routeShellTestId ? Boolean(document.querySelector(`[data-testid="${targetInfo.routeShellTestId}"]`)) || headingMatches() : headingMatches();
+      const routeReady = () => routeShellMatches() && headingMatches() && !previousHeadingStillVisible();
       const cleanup = () => {
         window.clearTimeout(timeoutId);
         document.removeEventListener("click", onClick, true);
@@ -100,20 +113,20 @@ async function measureNav(page: Page, target: NavigationTarget): Promise<Navigat
       };
       const onClick = () => {
         clickStart = performance.now();
-        if (headingMatches()) finish();
+        if (routeReady()) finish();
       };
       const timeoutId = window.setTimeout(() => {
         cleanup();
-        reject(new Error(`Timed out waiting for route content: ${expectedHeading}`));
+        reject(new Error(`Timed out waiting for route content: ${targetInfo.heading}`));
       }, 10_000);
 
       document.addEventListener("click", onClick, true);
       observer = new MutationObserver(() => {
-        if (clickStart > 0 && headingMatches()) finish();
+        if (clickStart > 0 && routeReady()) finish();
       });
       observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     });
-  }, target.heading);
+  }, { heading: target.heading, previousHeading: target.previousHeading, routeShellTestId: target.routeShellTestId });
 
   await link.click();
   const [acknowledgementMs, routeReadyMs] = await Promise.all([acknowledgementPromise, routeReadyPromise]);
