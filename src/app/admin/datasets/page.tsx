@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useJsonResource } from "@/hooks/use-json-resource";
+import { useFastResource } from "@/hooks/use-fast-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface DatasetListItem {
@@ -32,7 +32,7 @@ const PAGE_SIZE = 50;
 
 export default function AdminDatasetsPage() {
   const [page, setPage] = useState(1);
-  const { data, error, loading } = useJsonResource<DatasetsPayload>(`/api/datasets?page=${page}&pageSize=${PAGE_SIZE}&counts=1`, EMPTY_DATASETS);
+  const { data, error, isInitialLoading, isRefreshing } = useFastResource<DatasetsPayload>(`/api/datasets?page=${page}&pageSize=${PAGE_SIZE}&counts=1`, EMPTY_DATASETS);
   const datasets = data.datasets ?? [];
   const total = data.total ?? datasets.length;
   const totalPages = Math.max(Math.ceil(total / (data.pageSize ?? PAGE_SIZE)), 1);
@@ -68,7 +68,7 @@ export default function AdminDatasetsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading &&
+            {isInitialLoading && datasets.length === 0 &&
               Array.from({ length: 6 }).map((_, index) => (
                 <TableRow key={index}>
                   <TableCell><div className="h-4 w-48 rounded bg-slate-100" /></TableCell>
@@ -80,7 +80,7 @@ export default function AdminDatasetsPage() {
                   <TableCell><div className="ml-auto h-8 w-14 rounded bg-slate-100" /></TableCell>
                 </TableRow>
               ))}
-            {!loading && datasets.length === 0 && (
+            {!isInitialLoading && datasets.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-slate-500">
                   Chưa có dataset.
@@ -109,14 +109,15 @@ export default function AdminDatasetsPage() {
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-3 py-2 text-sm text-slate-600">
           <span>Trang {page} / {totalPages}</span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            <Button variant="outline" size="sm" disabled={page <= 1 || isRefreshing} onClick={() => setPage((current) => Math.max(1, current - 1))}>
               Trước
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isRefreshing} onClick={() => setPage((current) => current + 1)}>
               Sau
             </Button>
           </div>
         </div>
+        {isRefreshing && datasets.length > 0 ? <div className="border-t border-slate-200 px-3 py-2 text-xs text-slate-400">Đang cập nhật</div> : null}
       </div>
     </div>
   );

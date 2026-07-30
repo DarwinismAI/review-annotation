@@ -8,6 +8,8 @@ import "./task-groups.test";
 import "./adjudication.test";
 import "./import-jobs.test";
 import "./json-resource.test";
+import "./fast-resource-contract.test";
+import "./api-list-contracts.test";
 import "./datasets-route.test";
 
 console.log("dataset helper tests passed");

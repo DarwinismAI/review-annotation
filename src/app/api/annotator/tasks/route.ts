@@ -3,18 +3,6 @@ import { count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationMetrics, datasetRows, datasets } from "@/db/datasets";
 import { requireAnnotator } from "@/lib/auth-middleware";
-import { projectFields, type JsonRecord } from "@/lib/datasets/import-validation";
-
-function normalizeJson(value: unknown): JsonRecord {
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value) as JsonRecord;
-    } catch {
-      return {};
-    }
-  }
-  return value && typeof value === "object" ? (value as JsonRecord) : {};
-}
 
 export const GET = requireAnnotator(async (req: NextRequest, session) => {
   const { searchParams } = new URL(req.url);
@@ -31,8 +19,6 @@ export const GET = requireAnnotator(async (req: NextRequest, session) => {
       datasetId: annotationAssignments.datasetId,
       datasetName: datasets.name,
       internalRowId: datasetRows.internalRowId,
-      rawJson: datasetRows.rawJson,
-      displayConfig: datasets.displayConfig,
       metricIds: annotationAssignments.metricIds,
       status: annotationAssignments.status,
       assignedAt: annotationAssignments.assignedAt,
@@ -55,7 +41,6 @@ export const GET = requireAnnotator(async (req: NextRequest, session) => {
   return NextResponse.json({
     tasks: assignments
       .map((assignment: any) => {
-        const displayConfig = assignment.displayConfig as { listFields: string[]; detailFields: string[] };
         const metricIds = assignment.metricIds as string[];
         return {
           id: assignment.id,
@@ -64,7 +49,8 @@ export const GET = requireAnnotator(async (req: NextRequest, session) => {
           internalRowId: assignment.internalRowId,
           status: assignment.status,
           assignedAt: assignment.assignedAt,
-          listFields: projectFields(normalizeJson(assignment.rawJson), displayConfig.listFields),
+          // The detail route owns full row JSON; keep this legacy list key light.
+          listFields: {},
           metricLabels: metricIds.map((metricId) => metricLabels.get(metricId)).filter(Boolean),
         };
       }),

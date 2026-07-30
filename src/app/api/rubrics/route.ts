@@ -29,6 +29,16 @@ type RubricTransaction = PgTransaction<
   ExtractTablesWithRelations<typeof schema>
 >;
 type Rubric = typeof rubrics.$inferSelect;
+type RubricListRow = Rubric & {
+  criterionId: string | null;
+  criterionName: string | null;
+  description: string | null;
+  scale: string | null;
+  required: number | null;
+  criterionSortOrder: number | null;
+  criterionCreatedAt: number | null;
+  criterionUpdatedAt: number | null;
+};
 
 function normalizeMetricInput(body: MetricBody) {
   const metric = Array.isArray(body.criteria) && body.criteria.length === 1
@@ -62,23 +72,56 @@ export const GET = requireAdmin(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const domain = searchParams.get("domain");
 
-  const rubricRows = await db
-    .select()
+  const rows: RubricListRow[] = await db
+    .select({
+      id: rubrics.id,
+      name: rubrics.name,
+      domain: rubrics.domain,
+      createdBy: rubrics.createdBy,
+      createdAt: rubrics.createdAt,
+      updatedAt: rubrics.updatedAt,
+      criterionId: rubricCriteria.id,
+      criterionName: rubricCriteria.name,
+      description: rubricCriteria.description,
+      scale: rubricCriteria.scale,
+      required: rubricCriteria.required,
+      criterionSortOrder: rubricCriteria.sortOrder,
+      criterionCreatedAt: rubricCriteria.createdAt,
+      criterionUpdatedAt: rubricCriteria.updatedAt,
+    })
     .from(rubrics)
+    .leftJoin(rubricCriteria, eq(rubricCriteria.rubricId, rubrics.id))
     .where(domain ? eq(rubrics.domain, domain) : undefined)
-    .orderBy(asc(rubrics.createdAt), asc(rubrics.id));
+    .orderBy(asc(rubrics.createdAt), asc(rubrics.id), asc(rubricCriteria.sortOrder));
 
-  const result = await Promise.all(
-    rubricRows.map(async (rubric: Rubric) => {
-      const [criterion] = await db
-        .select()
-        .from(rubricCriteria)
-        .where(eq(rubricCriteria.rubricId, rubric.id))
-        .orderBy(rubricCriteria.sortOrder);
-
-      return toMetricResponse(rubric, criterion ?? null);
-    }),
-  );
+  const result: Array<ReturnType<typeof toMetricResponse>> = [];
+  const seenRubrics = new Set<string>();
+  for (const row of rows) {
+    if (seenRubrics.has(row.id)) continue;
+    seenRubrics.add(row.id);
+    const rubric: Rubric = {
+      id: row.id,
+      name: row.name,
+      domain: row.domain,
+      createdBy: row.createdBy,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+    const criterion = row.criterionId
+      ? {
+          id: row.criterionId,
+          rubricId: row.id,
+          name: row.criterionName ?? row.name,
+          description: row.description,
+          scale: row.scale ?? "[]",
+          required: row.required ?? 1,
+          sortOrder: row.criterionSortOrder ?? 0,
+          createdAt: row.criterionCreatedAt ?? row.createdAt,
+          updatedAt: row.criterionUpdatedAt ?? row.updatedAt,
+        }
+      : null;
+    result.push(toMetricResponse(rubric, criterion));
+  }
 
   return NextResponse.json({ data: result });
 });

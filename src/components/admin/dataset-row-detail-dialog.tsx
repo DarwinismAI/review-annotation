@@ -7,6 +7,7 @@ import { AgreementBadge } from "./agreement-badge";
 import { AnnotatorAvatarStack } from "./annotator-avatar-stack";
 import { JsonFieldValue } from "./json-field-value";
 import { OverlapBadge } from "./overlap-badge";
+import { readJsonResponse } from "@/hooks/use-json-resource";
 
 interface RowDetailAssignment {
   id: string;
@@ -56,9 +57,9 @@ export function DatasetRowDetailDialog({ datasetId, rowId, open, onOpenChange }:
 
     fetch(`/api/datasets/${datasetId}/rows/${rowId}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
-        const payload = await response.json();
+        const payload = (await readJsonResponse(response)) as DatasetRowDetailResponse & { error?: string };
         if (!response.ok) throw new Error(payload.error ?? "Không tải được chi tiết row");
-        setDetail((payload as DatasetRowDetailResponse).row);
+        setDetail(payload.row);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;

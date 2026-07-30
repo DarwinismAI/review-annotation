@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { invalidateFastResource, useFastResource } from "@/hooks/use-fast-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface Rubric {
@@ -14,6 +15,12 @@ interface Rubric {
   createdAt: number | string;
 }
 
+interface RubricsPayload {
+  data?: Rubric[];
+}
+
+const EMPTY_RUBRICS: RubricsPayload = { data: [] };
+
 function formatDate(raw: number | string): string {
   const d = new Date(typeof raw === "number" ? raw : raw);
   if (isNaN(d.getTime())) return "-";
@@ -21,23 +28,13 @@ function formatDate(raw: number | string): string {
 }
 
 export default function AdminRubricsPage() {
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, error: loadError, isInitialLoading, isRefreshing, setData } = useFastResource<RubricsPayload>("/api/rubrics", EMPTY_RUBRICS);
+  const rubrics = data.data ?? [];
 
   // Delete confirm dialog
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-
-  useEffect(() => {
-    fetch("/api/rubrics")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.data) setRubrics(json.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   async function confirmDelete() {
     if (!deleteId) return;
@@ -50,7 +47,8 @@ export default function AdminRubricsPage() {
         setDeleteError(json.error?.message ?? "Không thể xóa metric");
         return;
       }
-      setRubrics((prev) => prev.filter((r) => r.id !== deleteId));
+      invalidateFastResource("/api/rubrics");
+      setData((current) => ({ ...current, data: (current.data ?? []).filter((r) => r.id !== deleteId) }));
       setDeleteId(null);
     } catch {
       setDeleteError("Không thể xóa metric");
@@ -74,6 +72,7 @@ export default function AdminRubricsPage() {
             Tạo metric mới
           </Link>
         </div>
+        {loadError ? <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</div> : null}
 
         {/* Rubric table */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -90,7 +89,7 @@ export default function AdminRubricsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {isInitialLoading && rubrics.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-8 text-center">
                       <p className="text-slate-500 text-sm">Đang tải...</p>
@@ -103,7 +102,8 @@ export default function AdminRubricsPage() {
                     </td>
                   </tr>
                 ) : (
-                  rubrics.map((r) => (
+                  <>
+                    {rubrics.map((r) => (
                       <tr key={r.id} className="hover:bg-blue-50/50 transition-colors">
                         <td className="px-5 py-4">
                           <span className="font-medium text-slate-900">{r.name}</span>
@@ -142,7 +142,13 @@ export default function AdminRubricsPage() {
                           </div>
                         </td>
                       </tr>
-                    ))
+                    ))}
+                    {isRefreshing ? (
+                      <tr>
+                        <td colSpan={6} className="px-5 py-3 text-xs text-slate-400">Đang cập nhật</td>
+                      </tr>
+                    ) : null}
+                  </>
                 )}
               </tbody>
             </table>

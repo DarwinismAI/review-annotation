@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { readJsonResponse } from "@/hooks/use-json-resource";
 import { collectExtraFieldsResponsive, parseDatasetFile, validateAppendRowsResponsive } from "@/lib/datasets/client-file-import";
 import { CLIENT_IMPORT_CHUNK_SIZE, MAX_DATASET_IMPORT_ROWS } from "@/lib/datasets/import-limits";
 import { type JsonRecord } from "@/lib/datasets/import-validation";
@@ -93,13 +94,18 @@ export function DatasetAppendImportPanel({ datasetId, requiredFields, schemaFiel
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ filename, rows: chunk, importId: importId || undefined, totalRows: rows.length, finalChunk }),
         });
-        const payload = await response.json().catch(() => ({}));
+        const payload = (await readJsonResponse(response)) as {
+          importId?: string;
+          message?: string;
+          error?: string;
+          missingFields?: MissingField[];
+        };
         if (!response.ok) {
           showStatus(payload.message ?? payload.error ?? `Import thất bại tại dòng ${index + 1}`, "error");
           setMissingFields(payload.missingFields ?? []);
           return;
         }
-        importId = payload.importId;
+        importId = payload.importId ?? importId;
         showStatus(`Đã import ${Math.min(index + chunk.length, rows.length)}/${rows.length} dòng`, "progress");
       }
       showStatus(`Đã thêm ${rows.length} dòng`, "success");

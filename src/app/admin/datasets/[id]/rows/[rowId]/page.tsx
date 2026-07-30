@@ -10,6 +10,7 @@ import { AnnotatorAvatarStack } from "@/components/admin/annotator-avatar-stack"
 import { OverlapBadge } from "@/components/admin/overlap-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { readJsonResponse } from "@/hooks/use-json-resource";
 
 interface RowDetailAssignment {
   id: string;
@@ -63,8 +64,8 @@ export default function AdminDatasetRowDetailPage() {
         fetch(`/api/datasets/${datasetId}/rows/${rowId}/adjudication`, { cache: "no-store" }),
       ]);
       const [rowPayload, adjudicationPayload] = await Promise.all([
-        rowResponse.json() as Promise<RowDetailPayload>,
-        adjudicationResponse.json() as Promise<AdjudicationPayload>,
+        readJsonResponse(rowResponse) as Promise<RowDetailPayload>,
+        readJsonResponse(adjudicationResponse) as Promise<AdjudicationPayload>,
       ]);
       if (!rowResponse.ok) throw new Error(rowPayload.error ?? "Không tải được row");
       if (!adjudicationResponse.ok) throw new Error(adjudicationPayload.error ?? "Không tải được adjudication");

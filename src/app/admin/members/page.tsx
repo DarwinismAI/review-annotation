@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useJsonResource } from "@/hooks/use-json-resource";
+import { invalidateFastResource, useFastResource } from "@/hooks/use-fast-resource";
 import { ROLE_LABELS, labelForDomain } from "@/lib/labels";
 import type { AppRole } from "@/lib/roles";
 
@@ -40,7 +40,7 @@ function statusLabel(status: string | null): string {
 }
 
 export default function AdminMembersPage() {
-  const { data, error: loadError, loading, setData } = useJsonResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
+  const { data, error: loadError, isInitialLoading, isRefreshing, setData } = useFastResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
   const members = data.members ?? [];
   const canManageRoles = Boolean(data.canManageRoles);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -61,6 +61,7 @@ export default function AdminMembersPage() {
         setMutationError(payload.error ?? "Không cập nhật được role");
         return;
       }
+      invalidateFastResource("/api/admin/members");
       setData((current) => ({
         ...current,
         members: (current.members ?? []).map((item) => (item.id === member.id ? { ...item, role: payload.member.role } : item)),
@@ -87,6 +88,7 @@ export default function AdminMembersPage() {
         setMutationError(payload.error?.message ?? "Không cập nhật được trạng thái annotator");
         return;
       }
+      invalidateFastResource("/api/admin/members");
       setData((current) => ({
         ...current,
         members: (current.members ?? []).map((item) =>
@@ -127,7 +129,7 @@ export default function AdminMembersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {loading ? (
+            {isInitialLoading && members.length === 0 ? (
               Array.from({ length: 5 }).map((_, index) => (
                 <tr key={index}>
                   <td className="px-4 py-4"><div className="h-4 w-48 rounded bg-slate-100" /></td>
@@ -185,6 +187,11 @@ export default function AdminMembersPage() {
                 </tr>
               ))
             )}
+            {isRefreshing && members.length > 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-xs text-slate-400">Đang cập nhật</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

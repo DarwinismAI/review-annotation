@@ -45,7 +45,13 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const completion = searchParams.get("completion") ?? "";
   const fieldMode = searchParams.get("fields") === "detail" ? "detail" : "list";
 
-  const dataset = (await db.select().from(datasets).where(eq(datasets.id, datasetId)))[0];
+  const [dataset] = await db
+    .select({
+      id: datasets.id,
+      displayConfig: datasets.displayConfig,
+    })
+    .from(datasets)
+    .where(eq(datasets.id, datasetId));
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
   const [{ total }] = await db.select({ total: count() }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId));

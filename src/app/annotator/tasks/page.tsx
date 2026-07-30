@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useJsonResource } from "@/hooks/use-json-resource";
+import { useFastResource } from "@/hooks/use-fast-resource";
 
 interface AnnotatorTaskGroup {
   id: string;
@@ -27,7 +27,7 @@ interface TasksPayload {
 const EMPTY_TASKS: TasksPayload = { taskGroups: [] };
 
 export default function AnnotatorTasksPage() {
-  const { data, error, loading } = useJsonResource<TasksPayload>("/api/annotator/task-groups", EMPTY_TASKS);
+  const { data, error, isInitialLoading, isRefreshing } = useFastResource<TasksPayload>("/api/annotator/task-groups", EMPTY_TASKS);
   const taskGroups = data.taskGroups ?? [];
 
   return (
@@ -54,7 +54,7 @@ export default function AnnotatorTasksPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading &&
+            {isInitialLoading && taskGroups.length === 0 &&
               Array.from({ length: 6 }).map((_, index) => (
                 <TableRow key={index}>
                   <TableCell><div className="h-4 w-48 rounded bg-slate-100" /></TableCell>
@@ -67,7 +67,7 @@ export default function AnnotatorTasksPage() {
                   <TableCell><div className="ml-auto h-8 w-14 rounded bg-slate-100" /></TableCell>
                 </TableRow>
               ))}
-            {!loading && taskGroups.length === 0 && (
+            {!isInitialLoading && taskGroups.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-slate-500">
                   Chưa có task được giao.
@@ -92,6 +92,13 @@ export default function AnnotatorTasksPage() {
                 </TableCell>
               </TableRow>
             ))}
+            {isRefreshing && taskGroups.length > 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-xs text-slate-400">
+                  Đang cập nhật
+                </TableCell>
+              </TableRow>
+            ) : null}
           </TableBody>
         </Table>
       </div>

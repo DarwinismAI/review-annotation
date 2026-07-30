@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useJsonResource } from "@/hooks/use-json-resource";
+import { useFastResource } from "@/hooks/use-fast-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface DatasetListItem {
@@ -56,8 +56,8 @@ const EMPTY_DATASETS: DatasetsPayload = { datasets: [], summary: EMPTY_SUMMARY }
 const EMPTY_MEMBERS: MembersPayload = { members: [] };
 
 export default function AdminDashboardPage() {
-  const datasetsResource = useJsonResource<DatasetsPayload>("/api/datasets?page=1&pageSize=5&summary=1&counts=1", EMPTY_DATASETS);
-  const membersResource = useJsonResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
+  const datasetsResource = useFastResource<DatasetsPayload>("/api/datasets?page=1&pageSize=5&summary=1&counts=1", EMPTY_DATASETS);
+  const membersResource = useFastResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
   const datasets = datasetsResource.data.datasets ?? [];
   const members = membersResource.data.members ?? [];
   const summary = datasetsResource.data.summary ?? EMPTY_SUMMARY;
@@ -95,10 +95,10 @@ export default function AdminDashboardPage() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <OverviewCard icon={Database} label="Dataset" value={stats.datasetCount} loading={datasetsResource.loading} helper={`${stats.readyCount} ready`} />
-        <OverviewCard icon={Activity} label="Dòng dữ liệu" value={stats.rowCount} loading={datasetsResource.loading} helper={`${stats.importingCount} đang import`} />
-        <OverviewCard icon={ClipboardList} label="Metric" value={stats.metricCount} loading={datasetsResource.loading} helper="Đang dùng để chấm" />
-        <OverviewCard icon={Users} label="Annotator active" value={stats.activeAnnotators} loading={membersResource.loading} helper="Có thể nhận task" />
+        <OverviewCard icon={Database} label="Dataset" value={stats.datasetCount} loading={datasetsResource.isInitialLoading} helper={`${stats.readyCount} ready`} />
+        <OverviewCard icon={Activity} label="Dòng dữ liệu" value={stats.rowCount} loading={datasetsResource.isInitialLoading} helper={`${stats.importingCount} đang import`} />
+        <OverviewCard icon={ClipboardList} label="Metric" value={stats.metricCount} loading={datasetsResource.isInitialLoading} helper="Đang dùng để chấm" />
+        <OverviewCard icon={Users} label="Annotator active" value={stats.activeAnnotators} loading={membersResource.isInitialLoading} helper="Có thể nhận task" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -115,7 +115,7 @@ export default function AdminDashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {datasetsResource.loading &&
+              {datasetsResource.isInitialLoading && stats.recentDatasets.length === 0 &&
                 Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
                     <TableCell><Skeleton className="h-4 w-48" /></TableCell>
@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
                     <TableCell><Skeleton className="ml-auto h-8 w-14" /></TableCell>
                   </TableRow>
                 ))}
-              {!datasetsResource.loading && stats.recentDatasets.length === 0 && (
+              {!datasetsResource.isInitialLoading && stats.recentDatasets.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="h-20 text-slate-500">
                     Chưa có dataset.
@@ -149,6 +149,13 @@ export default function AdminDashboardPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {datasetsResource.isRefreshing && stats.recentDatasets.length > 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-xs text-slate-400">
+                    Đang cập nhật
+                  </TableCell>
+                </TableRow>
+              ) : null}
             </TableBody>
           </Table>
         </div>

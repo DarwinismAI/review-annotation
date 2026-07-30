@@ -7,6 +7,7 @@ import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatasetFieldSelector, type DatasetField } from "@/components/admin/dataset-field-selector";
+import { readJsonResponse } from "@/hooks/use-json-resource";
 import { parseDatasetFile } from "@/lib/datasets/client-file-import";
 import { CLIENT_IMPORT_CHUNK_SIZE, MAX_DATASET_IMPORT_ROWS } from "@/lib/datasets/import-limits";
 import { inspectDatasetRows } from "@/lib/datasets/import-validation";
@@ -44,9 +45,9 @@ export default function NewDatasetPage() {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/rubrics?domain=safety_compliance", { cache: "no-store" })
-      .then((response) => response.json())
+      .then((response) => readJsonResponse(response))
       .then((payload) => {
-        if (!cancelled) setMetrics(payload.data ?? []);
+        if (!cancelled) setMetrics(((payload as { data?: RubricMetric[] }).data ?? []));
       })
       .catch(() => {
         if (!cancelled) setStatus("Không tải được metrics từ Rubric");
@@ -62,9 +63,9 @@ export default function NewDatasetPage() {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/datasets?page=1&pageSize=1&summary=1", { cache: "no-store" })
-      .then((response) => response.json())
+      .then((response) => readJsonResponse(response))
       .then((payload) => {
-        if (!cancelled) setActiveImportCount(payload.summary?.importingCount ?? 0);
+        if (!cancelled) setActiveImportCount((payload as { summary?: { importingCount?: number } }).summary?.importingCount ?? 0);
       })
       .catch(() => {
         if (!cancelled) setStatus("Không kiểm tra được trạng thái import hiện tại");
@@ -154,7 +155,7 @@ export default function NewDatasetPage() {
           detailFields,
         }),
       });
-      const payload = await response.json();
+      const payload = (await readJsonResponse(response)) as { datasetId: string; importId: string; message?: string; error?: string };
       if (!response.ok) {
         setStatus(payload.message ?? payload.error ?? "Không tạo được dataset");
         return;
@@ -168,7 +169,7 @@ export default function NewDatasetPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ filename, rows: remainingChunks[index], importId: payload.importId, totalRows: rows.length, finalChunk }),
         });
-        const importPayload = await importResponse.json();
+        const importPayload = (await readJsonResponse(importResponse)) as { error?: string };
         if (!importResponse.ok) {
           setStatus(importPayload.error ?? `Dataset đã tạo nhưng lỗi import phần ${index + 1}`);
           return;

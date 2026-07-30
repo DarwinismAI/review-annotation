@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { readJsonResponse } from "@/hooks/use-json-resource";
 
 interface DatasetMetric {
   id: string;
@@ -47,9 +48,9 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
     if (!open) return;
     let cancelled = false;
     fetch("/api/annotators?status=active")
-      .then((response) => response.json())
+      .then((response) => readJsonResponse(response))
       .then((payload) => {
-        const data = (payload.data ?? []) as ActiveAnnotator[];
+        const data = ((payload as { data?: ActiveAnnotator[] }).data ?? []);
         if (cancelled) return;
         setAnnotators(data);
         const validIds = new Set(data.map((item) => item.userId));
@@ -97,13 +98,13 @@ export function DatasetAssignModal({ datasetId, metrics, selectedRowIds, open, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = await response.json();
+      const payload = (await readJsonResponse(response)) as { message?: string; error?: string; createdAssignments?: number };
       if (!response.ok) {
         setStatusTone("error");
         setStatus(payload.message ?? payload.error ?? "Assign thất bại");
         return;
       }
-      setStatusTone(payload.createdAssignments > 0 ? "success" : "neutral");
+      setStatusTone((payload.createdAssignments ?? 0) > 0 ? "success" : "neutral");
       setStatus(payload.message ?? `Đã tạo ${payload.createdAssignments} task`);
       onAssigned();
     } catch {
