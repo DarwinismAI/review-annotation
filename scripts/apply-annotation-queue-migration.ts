@@ -26,7 +26,7 @@ const REQUIRED_COLUMNS = [
   { table: "annotation_adjudications", column: "row_id", dataType: "text", isNullable: "NO", columnDefault: null },
   { table: "annotation_adjudications", column: "metric_id", dataType: "text", isNullable: "NO", columnDefault: null },
   { table: "annotation_adjudications", column: "metric_key", dataType: "text", isNullable: "NO", columnDefault: null },
-  { table: "annotation_adjudications", column: "reviewer_id", dataType: "text", isNullable: "YES", columnDefault: null },
+  { table: "annotation_adjudications", column: "reviewer_id", dataType: "uuid", isNullable: "YES", columnDefault: null },
   { table: "annotation_adjudications", column: "value", dataType: "text", isNullable: "YES", columnDefault: null },
   { table: "annotation_adjudications", column: "note", dataType: "text", isNullable: "YES", columnDefault: null },
   { table: "annotation_adjudications", column: "created_at", dataType: "timestamp with time zone", isNullable: "NO", columnDefault: "now()" },

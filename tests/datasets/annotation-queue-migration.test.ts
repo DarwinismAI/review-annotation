@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(".github/workflows/apply-annotation-queue-migration.yml", "utf8");
 const script = readFileSync("scripts/apply-annotation-queue-migration.ts", "utf8");
+const migration = readFileSync("migrations/0022_annotation_queue_adjudication.sql", "utf8");
+const pgDatasets = readFileSync("src/db/datasets.ts", "utf8");
+const sqliteDatasets = readFileSync("src/db/datasets.sqlite.ts", "utf8");
 const runner = readFileSync("tests/datasets/run.ts", "utf8");
 
 assert.match(workflow, /^on:\n  workflow_dispatch:\n/m);
@@ -23,6 +26,14 @@ assert.doesNotMatch(script, /client`\s*ROLLBACK\s*`/);
 assert.match(script, /tx\.unsafe\(migrationSql\)/);
 assert.doesNotMatch(script, /client\.unsafe\(migrationSql\)/);
 assert.match(script, /finally[\s\S]*client\.end\(\)/);
+assert.match(migration, /reviewer_id UUID REFERENCES profiles\(id\) ON DELETE SET NULL/);
+assert.doesNotMatch(migration, /reviewer_id TEXT REFERENCES profiles\(id\)/);
+assert.match(pgDatasets, /import \{ index, integer, jsonb, pgTable, text, timestamp, unique, uuid \} from "drizzle-orm\/pg-core";/);
+assert.equal((pgDatasets.match(/createdBy: uuid\("created_by"\)\.references\(\(\) => profiles\.id, \{ onDelete: "set null" \}\)/g) ?? []).length, 3);
+assert.equal((pgDatasets.match(/annotatorId: uuid\("annotator_id"\)\.notNull\(\)\.references\(\(\) => profiles\.id, \{ onDelete: "cascade" \}\)/g) ?? []).length, 2);
+assert.match(pgDatasets, /reviewerId: uuid\("reviewer_id"\)\.references\(\(\) => profiles\.id, \{ onDelete: "set null" \}\)/);
+assert.doesNotMatch(pgDatasets, /(?:createdBy|annotatorId|reviewerId): text\("(?:created_by|annotator_id|reviewer_id)"\)\.references\(\(\) => profiles\.id/);
+assert.match(sqliteDatasets, /reviewerId: text\("reviewer_id"\)\.references\(\(\) => profiles\.id, \{ onDelete: "set null" \}\)/);
 
 for (const table of [
   "datasets",
@@ -53,7 +64,7 @@ for (const required of [
   "table: \"annotation_adjudications\", column: \"row_id\", dataType: \"text\", isNullable: \"NO\", columnDefault: null",
   "table: \"annotation_adjudications\", column: \"metric_id\", dataType: \"text\", isNullable: \"NO\", columnDefault: null",
   "table: \"annotation_adjudications\", column: \"metric_key\", dataType: \"text\", isNullable: \"NO\", columnDefault: null",
-  "table: \"annotation_adjudications\", column: \"reviewer_id\", dataType: \"text\", isNullable: \"YES\", columnDefault: null",
+  "table: \"annotation_adjudications\", column: \"reviewer_id\", dataType: \"uuid\", isNullable: \"YES\", columnDefault: null",
   "table: \"annotation_adjudications\", column: \"value\", dataType: \"text\", isNullable: \"YES\", columnDefault: null",
   "table: \"annotation_adjudications\", column: \"note\", dataType: \"text\", isNullable: \"YES\", columnDefault: null",
   "table: \"annotation_adjudications\", column: \"created_at\", dataType: \"timestamp with time zone\", isNullable: \"NO\", columnDefault: \"now()\"",

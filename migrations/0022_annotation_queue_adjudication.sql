@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS annotation_adjudications (
   row_id TEXT NOT NULL REFERENCES dataset_rows(id) ON DELETE CASCADE,
   metric_id TEXT NOT NULL REFERENCES annotation_metrics(id) ON DELETE CASCADE,
   metric_key TEXT NOT NULL,
-  reviewer_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,
+  reviewer_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   value TEXT,
   note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
