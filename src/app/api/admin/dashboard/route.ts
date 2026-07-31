@@ -16,12 +16,22 @@ type DashboardSnapshotRow = {
   datasetCount: number | string;
   rowTotal: number | string;
   metricTotal: number | string;
+  readyDatasets: number | string;
+  importingDatasets: number | string;
   activeAnnotators: number | string;
 };
 
 export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const { searchParams } = new URL(req.url);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 5) || 5, 1), 20);
+  const bootstrapSuperadminEmails = (process.env.SUPERADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  const bootstrapSuperadminExclusion =
+    bootstrapSuperadminEmails.length > 0
+      ? sql`and lower(p.email) not in (${sql.join(bootstrapSuperadminEmails.map((email) => sql`${email}`), sql`, `)})`
+      : sql``;
 
   const queryDashboard = async () =>
     await db.execute(sql`
@@ -30,11 +40,14 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
           (select count(*) from datasets) as dataset_count,
           (select count(*) from dataset_rows) as row_total,
           (select count(*) from annotation_metrics) as metric_total,
+          (select count(*) from datasets where status = 'ready') as ready_datasets,
+          (select count(*) from datasets where status = 'importing') as importing_datasets,
           (
             select count(distinct p.id)
             from profiles p
             inner join expert_profiles ep on ep.user_id = p.id
-            where p.role in ('annotator', 'expert') and ep.status = 'active'
+            where ep.status = 'active' and p.role in ('annotator', 'expert')
+            ${bootstrapSuperadminExclusion}
           ) as active_annotators
       ),
       recent_datasets as (
@@ -76,6 +89,8 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
         t.dataset_count as "datasetCount",
         t.row_total as "rowTotal",
         t.metric_total as "metricTotal",
+        t.ready_datasets as "readyDatasets",
+        t.importing_datasets as "importingDatasets",
         t.active_annotators as "activeAnnotators"
       from totals t
       left join recent_datasets rd on true
@@ -93,6 +108,8 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
       datasets: Number(first?.datasetCount ?? 0),
       rows: Number(first?.rowTotal ?? 0),
       metrics: Number(first?.metricTotal ?? 0),
+      readyDatasets: Number(first?.readyDatasets ?? 0),
+      importingDatasets: Number(first?.importingDatasets ?? 0),
       activeAnnotators: Number(first?.activeAnnotators ?? 0),
     },
     recentDatasets: queryRows
