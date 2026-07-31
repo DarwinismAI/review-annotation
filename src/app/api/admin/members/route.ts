@@ -14,22 +14,24 @@ function isLegacyRoleConstraintError(error: unknown): boolean {
   return /role_check|profiles_role_check|check constraint|CHECK constraint/i.test(message);
 }
 
-export const GET = requireAdmin(async (_req, session) => {
-  const rows = await db
-    .select({
-      id: profiles.id,
-      email: profiles.email,
-      name: profiles.name,
-      role: profiles.role,
-      annotatorProfileId: expertProfiles.id,
-      annotatorDomain: expertProfiles.domain,
-      annotatorStatus: expertProfiles.status,
-      createdAt: profiles.createdAt,
-      updatedAt: profiles.updatedAt,
-    })
-    .from(profiles)
-    .leftJoin(expertProfiles, eq(expertProfiles.userId, profiles.id))
-    .orderBy(asc(profiles.email));
+export const GET = requireAdmin(async (_req, session, context) => {
+  const queryMembers = async () =>
+    await db
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        name: profiles.name,
+        role: profiles.role,
+        annotatorProfileId: expertProfiles.id,
+        annotatorDomain: expertProfiles.domain,
+        annotatorStatus: expertProfiles.status,
+        createdAt: profiles.createdAt,
+        updatedAt: profiles.updatedAt,
+      })
+      .from(profiles)
+      .leftJoin(expertProfiles, eq(expertProfiles.userId, profiles.id))
+      .orderBy(asc(profiles.email));
+  const rows = await context.timing.measure("sql", queryMembers);
 
   return NextResponse.json({
     canManageRoles: isSuperAdminRole(session.user.role),

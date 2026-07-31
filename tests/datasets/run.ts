@@ -11,6 +11,14 @@ import "./json-resource.test";
 import "./fast-resource-contract.test";
 import "./api-list-contracts.test";
 import "./annotation-queue-migration.test";
+import "./annotation-adjudication-security.test";
+import "./auth-fast-path.test";
+import "./request-timing.test";
+import "./dataset-query-contracts.test";
+import "./admin-row-navigation.test";
+import "./fast-resource-session.test";
+import "./dataset-page-state.test";
+import "./admin-row-navigation-ui.test";
 import "./datasets-route.test";
 
 console.log("dataset helper tests passed");

@@ -11,9 +11,13 @@ const members = readFileSync("src/app/api/admin/members/route.ts", "utf8");
 assert.doesNotMatch(datasets, /db\.select\(\)\.from\(datasets\)/);
 assert.match(datasets, /pageSize/);
 assert.match(datasets, /summary/);
-assert.match(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*total:\s*count\(\)/);
-assert.match(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*datasetId:\s*datasetRows\.datasetId/);
-assert.match(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*total:\s*count\(\)\s*\}\)\.from\(datasetRows\)/);
+assert.match(datasets, /db\.execute\(\s*sql`[\s\S]*page_datasets/i);
+assert.match(datasets, /dataset_total/i);
+assert.match(datasets, /page_row_counts/i);
+assert.match(datasets, /page_metric_counts/i);
+assert.match(datasets, /summary_totals/i);
+assert.doesNotMatch(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*total:\s*count\(\)/);
+assert.doesNotMatch(datasets, /rawJson:\s*datasetRows\.rawJson/);
 
 assert.doesNotMatch(taskGroups, /buildTaskGroups/);
 assert.match(taskGroups, /\.groupBy\(/);

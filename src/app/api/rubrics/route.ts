@@ -68,31 +68,33 @@ function normalizeMetricInput(body: MetricBody) {
 }
 
 /** GET /api/rubrics - list metrics with their single internal criterion */
-export const GET = requireAdmin(async (req: NextRequest) => {
+export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const { searchParams } = new URL(req.url);
   const domain = searchParams.get("domain");
 
-  const rows: RubricListRow[] = await db
-    .select({
-      id: rubrics.id,
-      name: rubrics.name,
-      domain: rubrics.domain,
-      createdBy: rubrics.createdBy,
-      createdAt: rubrics.createdAt,
-      updatedAt: rubrics.updatedAt,
-      criterionId: rubricCriteria.id,
-      criterionName: rubricCriteria.name,
-      description: rubricCriteria.description,
-      scale: rubricCriteria.scale,
-      required: rubricCriteria.required,
-      criterionSortOrder: rubricCriteria.sortOrder,
-      criterionCreatedAt: rubricCriteria.createdAt,
-      criterionUpdatedAt: rubricCriteria.updatedAt,
-    })
-    .from(rubrics)
-    .leftJoin(rubricCriteria, eq(rubricCriteria.rubricId, rubrics.id))
-    .where(domain ? eq(rubrics.domain, domain) : undefined)
-    .orderBy(asc(rubrics.createdAt), asc(rubrics.id), asc(rubricCriteria.sortOrder));
+  const queryRubrics = async () =>
+    await db
+      .select({
+        id: rubrics.id,
+        name: rubrics.name,
+        domain: rubrics.domain,
+        createdBy: rubrics.createdBy,
+        createdAt: rubrics.createdAt,
+        updatedAt: rubrics.updatedAt,
+        criterionId: rubricCriteria.id,
+        criterionName: rubricCriteria.name,
+        description: rubricCriteria.description,
+        scale: rubricCriteria.scale,
+        required: rubricCriteria.required,
+        criterionSortOrder: rubricCriteria.sortOrder,
+        criterionCreatedAt: rubricCriteria.createdAt,
+        criterionUpdatedAt: rubricCriteria.updatedAt,
+      })
+      .from(rubrics)
+      .leftJoin(rubricCriteria, eq(rubricCriteria.rubricId, rubrics.id))
+      .where(domain ? eq(rubrics.domain, domain) : undefined)
+      .orderBy(asc(rubrics.createdAt), asc(rubrics.id), asc(rubricCriteria.sortOrder));
+  const rows: RubricListRow[] = await context.timing.measure("sql", queryRubrics);
 
   const result: Array<ReturnType<typeof toMetricResponse>> = [];
   const seenRubrics = new Set<string>();

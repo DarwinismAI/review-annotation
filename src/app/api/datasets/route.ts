@@ -123,7 +123,7 @@ async function getDatasetMetricsFromRubrics(domain: string): Promise<MetricConfi
   }));
 }
 
-export const GET = requireAdmin(async (req: NextRequest) => {
+export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const { searchParams } = new URL(req.url);
   const page = Math.max(Number(searchParams.get("page") ?? 1) || 1, 1);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50) || 50, 1), 200);
@@ -185,7 +185,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
       st.importing_count as "summaryImportingCount"`
     : sql``;
 
-  const queryRows = rowsFromResult<DatasetListQueryRow>(
+  const queryDatasetList = async () =>
     await db.execute(sql`
       with page_datasets as (
         select id, name, domain, status, created_at
@@ -228,7 +228,9 @@ export const GET = requireAdmin(async (req: NextRequest) => {
       from dataset_total dt
       ${summaryJoin}
       where not exists (select 1 from page_datasets)
-    `),
+    `);
+  const queryRows = rowsFromResult<DatasetListQueryRow>(
+    await context.timing.measure("sql", queryDatasetList),
   );
   const datasetTotal = Number(queryRows[0]?.datasetTotal ?? 0);
   const datasetsPayload = queryRows.filter((dataset) => dataset.id);

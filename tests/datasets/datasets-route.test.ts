@@ -15,8 +15,11 @@ const datasetClientSources = [
 assert.match(routeSource, /searchParams\.get\("summary"\)/);
 assert.match(routeSource, /searchParams\.get\("counts"\)/);
 assert.doesNotMatch(routeSource, /db\.select\(\)\.from\(datasets\)/);
-assert.match(routeSource, /id:\s*datasets\.id/);
-assert.match(routeSource, /createdAt:\s*datasets\.createdAt/);
+assert.match(routeSource, /db\.execute\(\s*sql`[\s\S]*page_datasets/i);
+assert.match(routeSource, /pd\.id/);
+assert.match(routeSource, /pd\.created_at as "createdAt"/);
+assert.match(routeSource, /dataset_total/i);
+assert.match(routeSource, /summary_totals/i);
 assert.match(newDatasetPageSource, /summary\?\.importingCount/);
 assert.match(newDatasetPageSource, /\/api\/datasets\?page=1&pageSize=1&summary=1/);
 assert.doesNotMatch(datasetClientSources, /response\.json\(\)/);

@@ -23,7 +23,7 @@ type RouteContext = { params: Promise<Record<string, string>> };
 type Handler = (
   req: NextRequest,
   session: GuardedSession,
-  context?: ResolvedContext
+  context: ResolvedContext
 ) => Promise<NextResponse>;
 
 function withTiming(response: NextResponse, timing: RequestTiming) {

@@ -40,7 +40,7 @@ function normalizeJson(value: unknown): JsonRecord {
 }
 
 export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
-  const datasetId = context?.params.id;
+  const datasetId = context.params.id;
   if (!datasetId) return NextResponse.json({ error: "MISSING_DATASET_ID" }, { status: 400 });
 
   const { searchParams } = new URL(req.url);
@@ -54,48 +54,50 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
     : sql``;
   const completionPredicate = buildCompletionSql(filters.completion);
 
-  const [datasetResult, pageRowResult] = await Promise.all([
-    db.select({ id: datasets.id, displayConfig: datasets.displayConfig }).from(datasets).where(eq(datasets.id, datasetId)),
-    db.execute(sql`
-      with assignment_progress as (
-        select
-          row_id,
-          max(target_overlap) as target_overlap,
-          sum(case when status = 'completed' then 1 else 0 end) as completed_count
-        from annotation_assignments
-        where dataset_id = ${datasetId}
-        group by row_id
-      ),
-      filtered_rows as (
-        select
-          dr.id,
-          dr.internal_row_id as "internalRowId",
-          dr.raw_json as "rawJson",
-          coalesce(ap.target_overlap, 0) as target_overlap,
-          coalesce(ap.completed_count, 0) as completed_count
-        from dataset_rows dr
-        left join assignment_progress ap on ap.row_id = dr.id
-        where dr.dataset_id = ${datasetId}
-        ${searchPredicate}
-        ${completionPredicate}
-      ),
-      filtered_total as (
-        select count(*) as total from filtered_rows
-      ),
-      page_rows as (
-        select *, count(*) over() as "filteredTotal"
-        from filtered_rows
-        order by "internalRowId" asc
-        LIMIT ${pageSize} OFFSET ${offset}
-      )
-      select id, "internalRowId", "rawJson", "filteredTotal", 0 as "isTotalRow"
-      from page_rows
-      union all
-      select null as id, null as "internalRowId", null as "rawJson", total as "filteredTotal", 1 as "isTotalRow"
-      from filtered_total
-      where not exists (select 1 from page_rows)
-    `),
-  ]);
+  const [datasetResult, pageRowResult] = await context.timing.measure("sql", async () =>
+    await Promise.all([
+      db.select({ id: datasets.id, displayConfig: datasets.displayConfig }).from(datasets).where(eq(datasets.id, datasetId)),
+      db.execute(sql`
+        with assignment_progress as (
+          select
+            row_id,
+            max(target_overlap) as target_overlap,
+            sum(case when status = 'completed' then 1 else 0 end) as completed_count
+          from annotation_assignments
+          where dataset_id = ${datasetId}
+          group by row_id
+        ),
+        filtered_rows as (
+          select
+            dr.id,
+            dr.internal_row_id as "internalRowId",
+            dr.raw_json as "rawJson",
+            coalesce(ap.target_overlap, 0) as target_overlap,
+            coalesce(ap.completed_count, 0) as completed_count
+          from dataset_rows dr
+          left join assignment_progress ap on ap.row_id = dr.id
+          where dr.dataset_id = ${datasetId}
+          ${searchPredicate}
+          ${completionPredicate}
+        ),
+        filtered_total as (
+          select count(*) as total from filtered_rows
+        ),
+        page_rows as (
+          select *, count(*) over() as "filteredTotal"
+          from filtered_rows
+          order by "internalRowId" asc
+          LIMIT ${pageSize} OFFSET ${offset}
+        )
+        select id, "internalRowId", "rawJson", "filteredTotal", 0 as "isTotalRow"
+        from page_rows
+        union all
+        select null as id, null as "internalRowId", null as "rawJson", total as "filteredTotal", 1 as "isTotalRow"
+        from filtered_total
+        where not exists (select 1 from page_rows)
+      `),
+    ])
+  );
   const [dataset] = datasetResult;
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
@@ -106,7 +108,8 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
 
   const [assignmentRows, resultRows]: [DatasetRowAssignmentRecord[], DatasetRowResultRecord[]] =
     rowIds.length > 0
-      ? await Promise.all([
+      ? await context.timing.measure("sql", async () =>
+        await Promise.all([
           db
             .select({
               rowId: annotationAssignments.rowId,
@@ -129,6 +132,7 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
             .innerJoin(annotationAssignments, eq(annotationResults.assignmentId, annotationAssignments.id))
             .where(and(inArray(annotationResults.rowId, rowIds), eq(annotationAssignments.status, "completed"))),
         ])
+      )
       : [[], []];
 
   const assignmentsByRow = new Map<string, DatasetRowAssignmentRecord[]>();
