@@ -26,15 +26,22 @@ function getDb() {
     // ── SQLite via @libsql/client ──────────────────────────────────
     const { createClient } = require("@libsql/client");
     const { drizzle } = require("drizzle-orm/libsql");
+    const { SQLiteAsyncDialect } = require("drizzle-orm/sqlite-core");
     const client = createClient({ url: localPath });
     const allSqliteSchema = { ...schemaSqlite, ...reviewsSqlite, ...timeEventsSqlite, ...compensationSurveySqlite, ...datasetsSqlite };
     const db = drizzle(client, { schema: allSqliteSchema }) as any;
+    const sqliteDialect = new SQLiteAsyncDialect();
 
     // Polyfill: db.execute(sql) → { rows: any[] }
     // libsql uses .all() for SELECT and .run() for mutations;
     // we normalise both into the postgres-js .execute() contract.
     db.execute = async (sqlQuery: any) => {
-      const raw = sqlQuery.source ?? String(sqlQuery);
+      const raw =
+        typeof sqlQuery?.source === "string"
+          ? sqlQuery.source
+          : typeof sqlQuery?.toQuery === "function"
+            ? sqliteDialect.sqlToQuery(sqlQuery).sql
+            : String(sqlQuery);
       const upper = raw.trim().slice(0, 12).toUpperCase();
       const isSelect = upper.startsWith("SELECT") || upper.startsWith("WITH");
 
