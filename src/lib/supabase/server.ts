@@ -2,7 +2,11 @@ import "server-only";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createSupabase } from "@supabase/supabase-js";
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { profiles } from "@/db/schema";
 import { isLocalDevelopment } from "@/lib/local-dev";
+import type { RequestTiming } from "@/lib/request-timing";
 import { isAdminRole, normalizeRole, resolveEffectiveRole, type AppRole } from "@/lib/roles";
 export type { AppRole } from "@/lib/roles";
 
@@ -49,42 +53,66 @@ export interface AppSession {
   role: AppRole;
 }
 
+type ProfileSessionRow = {
+  email: string;
+  name: string | null;
+  role: string;
+};
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function measure<T>(timing: RequestTiming | undefined, phase: "auth" | "profile", work: () => Promise<T>): Promise<T> {
+  return timing ? timing.measure(phase, work) : work();
+}
+
 /** Returns the active session or null. Never throws. */
-export async function getSession(): Promise<AppSession | null> {
+export async function getSession(timing?: RequestTiming): Promise<AppSession | null> {
   // ── Local SQLite dev bypass ──
   if (isLocalDevelopment()) {
-    const cookieStore = await cookies();
-    const cookieRole = normalizeRole(cookieStore.get("dev_role")?.value);
-    if (cookieRole) {
-      const devId =
-        cookieRole === "annotator"
-          ? "00000000-0000-0000-0000-000000000002"
-          : cookieRole === "superadmin"
-            ? "00000000-0000-0000-0000-000000000099"
-            : "00000000-0000-0000-0000-000000000001";
-      const devEmail =
-        cookieRole === "annotator"
-          ? "annotator@review-annotation.local"
-          : cookieRole === "superadmin"
-            ? "superadmin@review-annotation.local"
-            : "admin@review-annotation.local";
-      return { userId: devId, email: devEmail, name: null, role: cookieRole };
-    }
-    return null;
+    return measure(timing, "auth", async () => {
+      const cookieStore = await cookies();
+      const cookieRole = normalizeRole(cookieStore.get("dev_role")?.value);
+      if (cookieRole) {
+        const devId =
+          cookieRole === "annotator"
+            ? "00000000-0000-0000-0000-000000000002"
+            : cookieRole === "superadmin"
+              ? "00000000-0000-0000-0000-000000000099"
+              : "00000000-0000-0000-0000-000000000001";
+        const devEmail =
+          cookieRole === "annotator"
+            ? "annotator@review-annotation.local"
+            : cookieRole === "superadmin"
+              ? "superadmin@review-annotation.local"
+              : "admin@review-annotation.local";
+        return { userId: devId, email: devEmail, name: null, role: cookieRole };
+      }
+      return null;
+    });
   }
 
   // ── Production: Supabase Auth ──
   const supabase = await getSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role,email,name")
-    .eq("id", user.id)
-    .single();
+  const claimsResult = await measure(timing, "auth", () => supabase.auth.getClaims());
+  const claims = claimsResult.data?.claims;
+  if (claimsResult.error || !claims || !isUuid(claims.sub)) return null;
+
+  const profileRows = await measure(timing, "profile", () =>
+    db
+      .select({
+        email: profiles.email,
+        name: profiles.name,
+        role: profiles.role,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, claims.sub))
+  ) as ProfileSessionRow[];
+  const [profile] = profileRows;
   if (!profile) return null;
   return {
-    userId: user.id,
+    userId: claims.sub,
     email: profile.email,
     name: (profile.name as string | null) ?? null,
     role: resolveEffectiveRole(profile.role, profile.email),

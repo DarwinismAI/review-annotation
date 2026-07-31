@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "./auth";
+import { getSession as getAppSession } from "./auth";
+import { createRequestTiming, type RequestTiming } from "@/lib/request-timing";
 import { isAdminRole, isAnnotatorRole, isSuperAdminRole, type AppRole } from "@/lib/roles";
 
 interface SessionUser {
@@ -14,7 +15,7 @@ interface GuardedSession {
 }
 
 /** Resolved params after awaiting the Next.js 15 async params Promise. */
-type ResolvedContext = { params: Record<string, string> };
+type ResolvedContext = { params: Record<string, string>; timing: RequestTiming };
 
 /** Next.js 15 App Router context shape - params are a Promise. */
 type RouteContext = { params: Promise<Record<string, string>> };
@@ -25,14 +26,19 @@ type Handler = (
   context?: ResolvedContext
 ) => Promise<NextResponse>;
 
-function errJson(status: number, code: string, message: string) {
-  return NextResponse.json({ error: { code, message } }, { status });
+function withTiming(response: NextResponse, timing: RequestTiming) {
+  response.headers.set("Server-Timing", timing.header());
+  return response;
 }
 
-async function getSession(req: NextRequest): Promise<GuardedSession | null> {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) return null;
-  return session as unknown as GuardedSession;
+function errJson(status: number, code: string, message: string, timing: RequestTiming) {
+  return withTiming(NextResponse.json({ error: { code, message } }, { status }), timing);
+}
+
+async function getSession(timing: RequestTiming): Promise<GuardedSession | null> {
+  const session = await getAppSession(timing);
+  if (!session) return null;
+  return { user: { id: session.userId, email: session.email, name: session.name, role: session.role } };
 }
 
 /**
@@ -40,10 +46,10 @@ async function getSession(req: NextRequest): Promise<GuardedSession | null> {
  * Next.js always passes a context object; params may be an empty object for
  * non-dynamic routes.
  */
-async function resolveContext(ctx?: RouteContext): Promise<ResolvedContext> {
-  if (!ctx?.params) return { params: {} };
+async function resolveContext(ctx: RouteContext | undefined, timing: RequestTiming): Promise<ResolvedContext> {
+  if (!ctx?.params) return { params: {}, timing };
   const params = await ctx.params;
-  return { params };
+  return { params, timing };
 }
 
 /**
@@ -52,9 +58,10 @@ async function resolveContext(ctx?: RouteContext): Promise<ResolvedContext> {
  */
 export function requireAuth(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
-    const session = await getSession(req);
-    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
-    return handler(req, session, await resolveContext(context));
+    const timing = createRequestTiming();
+    const session = await getSession(timing);
+    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập", timing);
+    return withTiming(await handler(req, session, await resolveContext(context, timing)), timing);
   };
 }
 
@@ -63,12 +70,13 @@ export function requireAuth(handler: Handler) {
  */
 export function requireAdmin(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
-    const session = await getSession(req);
-    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
+    const timing = createRequestTiming();
+    const session = await getSession(timing);
+    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập", timing);
     if (!isAdminRole(session.user.role)) {
-      return errJson(403, "FORBIDDEN", "Chỉ admin mới có quyền thực hiện thao tác này");
+      return errJson(403, "FORBIDDEN", "Chỉ admin mới có quyền thực hiện thao tác này", timing);
     }
-    return handler(req, session, await resolveContext(context));
+    return withTiming(await handler(req, session, await resolveContext(context, timing)), timing);
   };
 }
 
@@ -77,12 +85,13 @@ export function requireAdmin(handler: Handler) {
  */
 export function requireSuperAdmin(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
-    const session = await getSession(req);
-    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
+    const timing = createRequestTiming();
+    const session = await getSession(timing);
+    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập", timing);
     if (!isSuperAdminRole(session.user.role)) {
-      return errJson(403, "FORBIDDEN", "Chỉ superadmin mới có quyền thực hiện thao tác này");
+      return errJson(403, "FORBIDDEN", "Chỉ superadmin mới có quyền thực hiện thao tác này", timing);
     }
-    return handler(req, session, await resolveContext(context));
+    return withTiming(await handler(req, session, await resolveContext(context, timing)), timing);
   };
 }
 
@@ -91,12 +100,13 @@ export function requireSuperAdmin(handler: Handler) {
  */
 export function requireAnnotator(handler: Handler) {
   return async (req: NextRequest, context: RouteContext) => {
-    const session = await getSession(req);
-    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập");
+    const timing = createRequestTiming();
+    const session = await getSession(timing);
+    if (!session) return errJson(401, "UNAUTHORIZED", "Chưa đăng nhập", timing);
     if (!isAnnotatorRole(session.user.role)) {
-      return errJson(403, "FORBIDDEN", "Chỉ annotator mới có quyền thực hiện thao tác này");
+      return errJson(403, "FORBIDDEN", "Chỉ annotator mới có quyền thực hiện thao tác này", timing);
     }
-    return handler(req, session, await resolveContext(context));
+    return withTiming(await handler(req, session, await resolveContext(context, timing)), timing);
   };
 }
 

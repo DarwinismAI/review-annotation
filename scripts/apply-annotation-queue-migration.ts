@@ -2,8 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import postgres from "postgres";
 
-const MIGRATION_PATH = "migrations/0022_annotation_queue_adjudication.sql";
+const MIGRATION_PATHS = [
+  "migrations/0022_annotation_queue_adjudication.sql",
+  "migrations/0023_annotation_adjudication_security.sql",
+] as const;
 type QueryClient = postgres.Sql | postgres.TransactionSql;
+const CONCURRENT_INDEX_SQL = [
+  `CREATE INDEX CONCURRENTLY IF NOT EXISTS annotation_assignments_group_queue_idx
+     ON public.annotation_assignments (annotator_id, assignment_run_id, status, skipped_at, assigned_at)`,
+  `CREATE INDEX CONCURRENTLY IF NOT EXISTS dataset_imports_dataset_status_idx
+     ON public.dataset_imports (dataset_id, status, created_at DESC)`,
+  `CREATE INDEX CONCURRENTLY IF NOT EXISTS annotation_adjudications_dataset_row_idx
+     ON public.annotation_adjudications (dataset_id, row_id)`,
+] as const;
 const MONITORED_TABLES = [
   "datasets",
   "dataset_rows",
@@ -112,7 +123,7 @@ function normalizeDefault(value: string | null): string | null {
   return value;
 }
 
-async function verifyRequiredCatalog(client: QueryClient) {
+async function verifyRequiredCatalog(client: QueryClient, options: { includeIndexes: boolean } = { includeIndexes: true }) {
   if (!(await tableExists(client, "annotation_adjudications"))) {
     throw new Error("Missing required table annotation_adjudications");
   }
@@ -137,26 +148,28 @@ async function verifyRequiredCatalog(client: QueryClient) {
     }
   }
 
-  for (const expected of REQUIRED_INDEXES) {
-    const rows = await client<{ column_name: string; is_desc: boolean; is_unique: boolean }[]>`
-      select a.attname as column_name, (i.indoption[s.ordinality - 1] & 1) = 1 as is_desc, i.indisunique as is_unique
-      from pg_class idx
-      join pg_index i on i.indexrelid = idx.oid
-      join pg_class tbl on tbl.oid = i.indrelid
-      join pg_namespace n on n.oid = tbl.relnamespace
-      join lateral unnest(i.indkey) with ordinality as s(attnum, ordinality) on true
-      join pg_attribute a on a.attrelid = tbl.oid and a.attnum = s.attnum
-      where n.nspname = 'public'
-        and tbl.relname = ${expected.table}
-        and idx.relname = ${expected.name}
-      order by s.ordinality
-    `;
-    const actualColumns = rows.map((row) => `${row.column_name}${row.is_desc ? " DESC" : ""}`);
-    if (
-      actualColumns.join(",") !== expected.columns.join(",") ||
-      ("unique" in expected && Boolean(rows[0]?.is_unique) !== expected.unique)
-    ) {
-      throw new Error(`Invalid index contract ${expected.name}`);
+  if (options.includeIndexes) {
+    for (const expected of REQUIRED_INDEXES) {
+      const rows = await client<{ column_name: string; is_desc: boolean; is_unique: boolean }[]>`
+        select a.attname as column_name, (i.indoption[s.ordinality - 1] & 1) = 1 as is_desc, i.indisunique as is_unique
+        from pg_class idx
+        join pg_index i on i.indexrelid = idx.oid
+        join pg_class tbl on tbl.oid = i.indrelid
+        join pg_namespace n on n.oid = tbl.relnamespace
+        join lateral unnest(i.indkey) with ordinality as s(attnum, ordinality) on true
+        join pg_attribute a on a.attrelid = tbl.oid and a.attnum = s.attnum
+        where n.nspname = 'public'
+          and tbl.relname = ${expected.table}
+          and idx.relname = ${expected.name}
+        order by s.ordinality
+      `;
+      const actualColumns = rows.map((row) => `${row.column_name}${row.is_desc ? " DESC" : ""}`);
+      if (
+        actualColumns.join(",") !== expected.columns.join(",") ||
+        ("unique" in expected && Boolean(rows[0]?.is_unique) !== expected.unique)
+      ) {
+        throw new Error(`Invalid index contract ${expected.name}`);
+      }
     }
   }
 
@@ -199,9 +212,33 @@ async function verifyRequiredCatalog(client: QueryClient) {
   }
 }
 
+async function verifyAdjudicationSecurity(client: QueryClient) {
+  const [rls] = await client<{ relrowsecurity: boolean }[]>`
+    select c.relrowsecurity
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'annotation_adjudications'
+  `;
+  if (!rls?.relrowsecurity) {
+    throw new Error("annotation_adjudications RLS must be enabled");
+  }
+
+  const grants = await client<{ grantee: string; privilege_type: string }[]>`
+    select grantee, privilege_type
+    from information_schema.role_table_grants
+    where table_schema = 'public'
+      and table_name = 'annotation_adjudications'
+      and grantee in ('anon', 'authenticated')
+  `;
+  if (grants.length > 0) {
+    throw new Error("annotation_adjudications direct anon/authenticated grants must be revoked");
+  }
+}
+
 async function main() {
   const databaseUrl = resolveDatabaseUrl();
-  const migrationSql = fs.readFileSync(path.join(process.cwd(), MIGRATION_PATH), "utf8");
+  const migrationSql = MIGRATION_PATHS.map((migrationPath) => fs.readFileSync(path.join(process.cwd(), migrationPath), "utf8")).join("\n\n");
   const client = postgres(databaseUrl, { prepare: false });
 
   try {
@@ -209,7 +246,8 @@ async function main() {
       const beforeCounts = await readCounts(tx);
       const beforeAdjudications = await readOptionalTableCount(tx, "annotation_adjudications");
       await tx.unsafe(migrationSql);
-      await verifyRequiredCatalog(tx);
+      await verifyRequiredCatalog(tx, { includeIndexes: false });
+      await verifyAdjudicationSecurity(tx);
       const afterCounts = await readCounts(tx);
       const afterAdjudications = await readOptionalTableCount(tx, "annotation_adjudications");
       assertCountsEqual(beforeCounts, afterCounts);
@@ -220,6 +258,11 @@ async function main() {
         throw new Error("annotation_adjudications must be empty on first creation");
       }
     });
+    for (const statement of CONCURRENT_INDEX_SQL) {
+      await client.unsafe(statement);
+    }
+    await verifyRequiredCatalog(client);
+    await verifyAdjudicationSecurity(client);
   } finally {
     await client.end();
   }

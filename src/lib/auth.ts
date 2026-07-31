@@ -21,7 +21,7 @@ export const auth = {
     async getSession(_opts?: { headers?: Headers }) {
       const session = await getSession();
       if (!session) return null;
-      return { user: { id: session.userId, email: session.email, role: session.role } };
+      return { user: { id: session.userId, email: session.email, name: session.name, role: session.role } };
     },
   },
 };
