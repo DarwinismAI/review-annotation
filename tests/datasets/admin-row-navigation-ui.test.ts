@@ -30,6 +30,11 @@ assert.equal(isTextInputTarget({ tagName: "DIV", isContentEditable: true }), tru
 assert.equal(isTextInputTarget({ tagName: "BUTTON" }), false);
 
 assert.match(rowPage, /useRouter\(\)/);
+assert.match(rowPage, /loadIdRef/);
+assert.match(rowPage, /setRow\(null\)/);
+assert.match(rowPage, /setNavigation\(null\)/);
+assert.match(rowPage, /rowPayload\.row\.id !== rowId/);
+assert.match(rowPage, /!row \|\| row\.id !== rowId \|\| !navigation/);
 assert.match(rowPage, /navigation: RowNavigation/);
 assert.match(rowPage, /adjudications\?:/);
 assert.match(rowPage, /router\.prefetch/);
@@ -38,6 +43,10 @@ assert.match(rowPage, /Alt\+Left/);
 assert.match(rowPage, /Alt\+Right/);
 assert.match(rowPage, /ChevronLeft/);
 assert.match(rowPage, /ChevronRight/);
+assert.match(rowPage, /skipDirtyConfirm/);
+assert.match(rowPage, /goToRow\(navigation\.nextRowId, \{ skipDirtyConfirm: true \}\)/);
+assert.match(rowPage, /title="Câu trước \(Alt\+Left\)"/);
+assert.match(rowPage, /title="Câu tiếp \(Alt\+Right\)"/);
 assert.doesNotMatch(rowPage, /Promise\.all\(\[[\s\S]*?adjudicationResponse/);
 assert.doesNotMatch(rowPage, /\/adjudication`, \{ cache: "no-store" \}/);
 

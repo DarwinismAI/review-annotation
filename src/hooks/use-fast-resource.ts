@@ -93,11 +93,10 @@ export function useFastResource<T>(url: string, initialData: T, ttlMs = DEFAULT_
       };
     }
 
-    const sameUrl = lastUrlRef.current === url;
     setState((current) => ({
       ...current,
       error: null,
-      status: initializedRef.current && sameUrl ? "refreshing" : "loading",
+      status: initializedRef.current ? "refreshing" : "loading",
     }));
     lastUrlRef.current = url;
 

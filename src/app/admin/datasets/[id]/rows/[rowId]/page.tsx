@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnnotationWorkspace, type AnnotationWorkspaceMetric } from "@/components/annotation/annotation-workspace";
 import { AdjudicationPanel, type PersistedAdjudication } from "@/components/admin/adjudication-panel";
 import { AgreementBadge } from "@/components/admin/agreement-badge";
@@ -70,10 +70,15 @@ export default function AdminDatasetRowDetailPage() {
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const loadIdRef = useRef(0);
 
   const load = useCallback(async () => {
+    const loadId = loadIdRef.current + 1;
+    loadIdRef.current = loadId;
     setLoading(true);
     setError("");
+    setRow(null);
+    setNavigation(null);
     const query = new URLSearchParams({
       search,
       completion,
@@ -82,6 +87,8 @@ export default function AdminDatasetRowDetailPage() {
       const rowResponse = await fetch(`/api/datasets/${datasetId}/rows/${rowId}?${query.toString()}`, { cache: "no-store" });
       const rowPayload = (await readJsonResponse(rowResponse)) as RowDetailPayload;
       if (!rowResponse.ok) throw new Error(rowPayload.error ?? "Không tải được row");
+      if (rowPayload.row.id !== rowId) throw new Error("Không tải được row hiện tại");
+      if (loadIdRef.current !== loadId) return;
       setRow(rowPayload.row);
       setNavigation(rowPayload.navigation);
       setAdjudicationValues(
@@ -89,9 +96,12 @@ export default function AdminDatasetRowDetailPage() {
       );
       setDirty(false);
     } catch (err) {
+      if (loadIdRef.current !== loadId) return;
+      setRow(null);
+      setNavigation(null);
       setError(err instanceof Error ? err.message : "Không tải được row");
     } finally {
-      setLoading(false);
+      if (loadIdRef.current === loadId) setLoading(false);
     }
   }, [completion, datasetId, rowId, search]);
 
@@ -100,9 +110,9 @@ export default function AdminDatasetRowDetailPage() {
   }, [load]);
 
   const goToRow = useCallback(
-    (targetRowId: string | null) => {
+    (targetRowId: string | null, options: { skipDirtyConfirm?: boolean } = {}) => {
       if (!targetRowId) return;
-      if (!confirmDirtyNavigation(dirty, () => window.confirm("Bạn có thay đổi chưa lưu. Rời khỏi câu này?"))) return;
+      if (!options.skipDirtyConfirm && !confirmDirtyNavigation(dirty, () => window.confirm("Bạn có thay đổi chưa lưu. Rời khỏi câu này?"))) return;
       router.push(buildAdminRowHref({ datasetId, rowId: targetRowId, from, search, completion }));
     },
     [completion, datasetId, dirty, from, router, search],
@@ -153,7 +163,7 @@ export default function AdminDatasetRowDetailPage() {
     );
   }
 
-  if (!row || !navigation) {
+  if (!row || row.id !== rowId || !navigation) {
     return <div className="text-sm text-red-600">{error || "Không tải được row"}</div>;
   }
 
@@ -176,11 +186,11 @@ export default function AdminDatasetRowDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="icon" title="Alt+Left" aria-label="Câu trước" disabled={!navigation.previousRowId} onClick={() => goToRow(navigation.previousRowId)}>
+          <Button type="button" variant="outline" size="icon" title="Câu trước (Alt+Left)" aria-label="Câu trước" disabled={!navigation.previousRowId} onClick={() => goToRow(navigation.previousRowId)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm text-slate-500">{navigation.position} / {navigation.filteredTotal}</span>
-          <Button type="button" variant="outline" size="icon" title="Alt+Right" aria-label="Câu tiếp" disabled={!navigation.nextRowId} onClick={() => goToRow(navigation.nextRowId)}>
+          <Button type="button" variant="outline" size="icon" title="Câu tiếp (Alt+Right)" aria-label="Câu tiếp" disabled={!navigation.nextRowId} onClick={() => goToRow(navigation.nextRowId)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button type="button" variant="outline" onClick={goBack}>
@@ -243,7 +253,7 @@ export default function AdminDatasetRowDetailPage() {
         onSaved={handleSaved}
         onSaveAndNext={(result) => {
           handleSaved(result);
-          goToRow(navigation.nextRowId);
+          goToRow(navigation.nextRowId, { skipDirtyConfirm: true });
         }}
         hasNext={Boolean(navigation.nextRowId)}
       />
