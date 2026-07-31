@@ -2,12 +2,22 @@ name: Apply annotation queue migration
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
 
 jobs:
   apply-annotation-queue-migration:
+    name: Apply annotation queue migration (${{ inputs.target }})
     runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
     env:
-      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL || secrets.DATABASE_URL || secrets.PROD_POSTGRES_URL || secrets.POSTGRES_URL }}
+      DATABASE_URL: ${{ inputs.target == 'dev' && (secrets.DEV_DATABASE_URL || secrets.DEV_POSTGRES_URL) || (secrets.PROD_DATABASE_URL || secrets.DATABASE_URL || secrets.PROD_POSTGRES_URL || secrets.POSTGRES_URL) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,5 +32,5 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Apply annotation queue production migration
+      - name: Apply annotation queue migration (${{ inputs.target }})
         run: pnpm exec tsx scripts/apply-annotation-queue-migration.ts
