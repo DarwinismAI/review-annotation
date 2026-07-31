@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,25 +13,88 @@ interface AdjudicationMetric {
   scale: { values: string[] };
 }
 
+export interface PersistedAdjudication {
+  metricId: string;
+  value: string | null;
+  note: string | null;
+}
+
 interface AdjudicationPanelProps {
   datasetId: string;
   rowId: string;
   metrics: AdjudicationMetric[];
   initialValues: Record<string, { value: string | null; note: string | null }>;
-  onSaved?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onSaved?: (result: PersistedAdjudication[]) => void;
+  onSaveAndNext?: (result: PersistedAdjudication[]) => void;
+  hasNext: boolean;
 }
 
-export function AdjudicationPanel({ datasetId, rowId, metrics, initialValues, onSaved }: AdjudicationPanelProps) {
+function valuesFrom(metrics: AdjudicationMetric[], initialValues: Record<string, { value: string | null; note: string | null }>) {
+  return Object.fromEntries(metrics.map((metric) => [metric.id, initialValues[metric.id]?.value ?? null]));
+}
+
+function notesFrom(metrics: AdjudicationMetric[], initialValues: Record<string, { value: string | null; note: string | null }>) {
+  return Object.fromEntries(metrics.map((metric) => [metric.id, initialValues[metric.id]?.note ?? ""]));
+}
+
+function valuesFromPersisted(metrics: AdjudicationMetric[], adjudications: PersistedAdjudication[]) {
+  const persisted = new Map(adjudications.map((item) => [item.metricId, item]));
+  return Object.fromEntries(metrics.map((metric) => [metric.id, persisted.get(metric.id)?.value ?? null]));
+}
+
+function notesFromPersisted(metrics: AdjudicationMetric[], adjudications: PersistedAdjudication[]) {
+  const persisted = new Map(adjudications.map((item) => [item.metricId, item]));
+  return Object.fromEntries(metrics.map((metric) => [metric.id, persisted.get(metric.id)?.note ?? ""]));
+}
+
+function sameRecord(left: Record<string, string | null>, right: Record<string, string | null>) {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if ((left[key] ?? null) !== (right[key] ?? null)) return false;
+  }
+  return true;
+}
+
+export function AdjudicationPanel({
+  datasetId,
+  rowId,
+  metrics,
+  initialValues,
+  onDirtyChange,
+  onSaved,
+  onSaveAndNext,
+  hasNext,
+}: AdjudicationPanelProps) {
+  const initialValueState = useMemo(() => valuesFrom(metrics, initialValues), [metrics, initialValues]);
+  const initialNoteState = useMemo(() => notesFrom(metrics, initialValues), [metrics, initialValues]);
   const [values, setValues] = useState<Record<string, string | null>>(
-    Object.fromEntries(metrics.map((metric) => [metric.id, initialValues[metric.id]?.value ?? null])),
+    initialValueState,
   );
   const [notes, setNotes] = useState<Record<string, string>>(
-    Object.fromEntries(metrics.map((metric) => [metric.id, initialValues[metric.id]?.note ?? ""])),
+    initialNoteState,
   );
+  const [savedValues, setSavedValues] = useState<Record<string, string | null>>(initialValueState);
+  const [savedNotes, setSavedNotes] = useState<Record<string, string>>(initialNoteState);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
 
-  async function save() {
+  useEffect(() => {
+    setValues(initialValueState);
+    setNotes(initialNoteState);
+    setSavedValues(initialValueState);
+    setSavedNotes(initialNoteState);
+    setStatus("");
+    onDirtyChange?.(false);
+  }, [initialNoteState, initialValueState, onDirtyChange]);
+
+  const dirty = !sameRecord(values, savedValues) || !sameRecord(notes, savedNotes);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  async function save(): Promise<PersistedAdjudication[] | null> {
     setSaving(true);
     setStatus("");
     try {
@@ -43,15 +106,30 @@ export function AdjudicationPanel({ datasetId, rowId, metrics, initialValues, on
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         setStatus(payload.error ?? "Lưu adjudication thất bại");
-        return;
+        return null;
       }
+      const persisted = (payload.adjudications ?? []) as PersistedAdjudication[];
+      const nextValues = valuesFromPersisted(metrics, persisted);
+      const nextNotes = notesFromPersisted(metrics, persisted);
+      setValues(nextValues);
+      setNotes(nextNotes);
+      setSavedValues(nextValues);
+      setSavedNotes(nextNotes);
       setStatus("Đã lưu adjudication");
-      onSaved?.();
+      onDirtyChange?.(false);
+      onSaved?.(persisted);
+      return persisted;
     } catch {
       setStatus("Lưu adjudication thất bại");
+      return null;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveAndNext() {
+    const persisted = await save();
+    if (persisted) onSaveAndNext?.(persisted);
   }
 
   return (
@@ -61,9 +139,14 @@ export function AdjudicationPanel({ datasetId, rowId, metrics, initialValues, on
           <h2 className="text-sm font-semibold text-slate-900">Adjudication</h2>
           <p className="text-xs text-slate-500">Reviewer final decision, tách riêng khỏi vote của annotator.</p>
         </div>
-        <Button type="button" onClick={save} disabled={saving || metrics.length === 0}>
-          {saving ? "Đang lưu..." : "Lưu adjudication"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={save} disabled={saving || metrics.length === 0}>
+            {saving ? "Đang lưu..." : "Lưu"}
+          </Button>
+          <Button type="button" onClick={saveAndNext} disabled={saving || metrics.length === 0 || !hasNext}>
+            {saving ? "Đang lưu..." : "Lưu & câu tiếp"}
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-3">

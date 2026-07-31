@@ -7,6 +7,7 @@ export type FastResourceStatus = "idle" | "loading" | "ready" | "refreshing" | "
 
 const DEFAULT_TTL_MS = 30000;
 const cache = new Map<string, { value: unknown; expiresAt: number }>();
+let currentSessionId: string | null = null;
 
 interface FastResourceState<T> {
   data: T;
@@ -41,7 +42,8 @@ function messageFromPayload(payload: unknown) {
 
 export function invalidateFastResource(prefix: string) {
   for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) cache.delete(key);
+    const url = key.slice(key.indexOf(":") + 1);
+    if (url.startsWith(prefix)) cache.delete(key);
   }
 }
 
@@ -49,8 +51,19 @@ export function clearFastResourceCache() {
   cache.clear();
 }
 
+export function setFastResourceSession(userId: string | null) {
+  if (currentSessionId === userId) return;
+  clearFastResourceCache();
+  currentSessionId = userId;
+}
+
+function fastResourceKey(sessionId: string | null, url: string) {
+  return `${sessionId ?? "anonymous"}:${url}`;
+}
+
 export function useFastResource<T>(url: string, initialData: T, ttlMs = DEFAULT_TTL_MS): FastResourceState<T> {
-  const cached = cache.get(url);
+  const key = fastResourceKey(currentSessionId, url);
+  const cached = cache.get(key);
   const now = Date.now();
   const hasFreshCache = Boolean(cached && cached.expiresAt > now);
   const initializedRef = useRef(hasFreshCache);
@@ -65,7 +78,8 @@ export function useFastResource<T>(url: string, initialData: T, ttlMs = DEFAULT_
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
-    const cachedValue = cache.get(url);
+    const sessionKey = fastResourceKey(currentSessionId, url);
+    const cachedValue = cache.get(sessionKey);
     const fresh = cachedValue && cachedValue.expiresAt > Date.now();
     const forceReload = version > 0;
 
@@ -101,7 +115,7 @@ export function useFastResource<T>(url: string, initialData: T, ttlMs = DEFAULT_
           if (response.ok) throw parseError;
         }
         if (!response.ok) throw new Error(messageFromPayload(payload));
-        cache.set(url, { value: payload, expiresAt: Date.now() + ttlMs });
+        cache.set(sessionKey, { value: payload, expiresAt: Date.now() + ttlMs });
         if (!active) return;
         initializedRef.current = true;
         setState({ data: payload as T, error: null, status: "ready" });

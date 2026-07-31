@@ -31,11 +31,12 @@ const EMPTY_DATASETS: DatasetsPayload = { datasets: [] };
 const PAGE_SIZE = 50;
 
 export default function AdminDatasetsPage() {
-  const [page, setPage] = useState(1);
-  const { data, error, isInitialLoading, isRefreshing } = useFastResource<DatasetsPayload>(`/api/datasets?page=${page}&pageSize=${PAGE_SIZE}&counts=1`, EMPTY_DATASETS);
+  const [requestedPage, setRequestedPage] = useState(1);
+  const { data, error, isInitialLoading, isRefreshing, reload } = useFastResource<DatasetsPayload>(`/api/datasets?page=${requestedPage}&pageSize=${PAGE_SIZE}&counts=1`, EMPTY_DATASETS);
   const datasets = data.datasets ?? [];
   const total = data.total ?? datasets.length;
   const totalPages = Math.max(Math.ceil(total / (data.pageSize ?? PAGE_SIZE)), 1);
+  const displayedPage = data.page ?? requestedPage;
 
   return (
     <div className="space-y-4">
@@ -52,7 +53,14 @@ export default function AdminDatasetsPage() {
         </Button>
       </div>
 
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{error}</span>
+          <Button type="button" variant="outline" size="sm" onClick={reload}>
+            Thử lại
+          </Button>
+        </div>
+      ) : null}
 
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <Table>
@@ -107,12 +115,12 @@ export default function AdminDatasetsPage() {
           </TableBody>
         </Table>
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-3 py-2 text-sm text-slate-600">
-          <span>Trang {page} / {totalPages}</span>
+          <span>Trang {displayedPage} / {totalPages}</span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1 || isRefreshing} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            <Button variant="outline" size="sm" disabled={displayedPage <= 1 || isRefreshing} onClick={() => setRequestedPage((current) => Math.max(1, current - 1))}>
               Trước
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages || isRefreshing} onClick={() => setPage((current) => current + 1)}>
+            <Button variant="outline" size="sm" disabled={displayedPage >= totalPages || isRefreshing} onClick={() => setRequestedPage((current) => current + 1)}>
               Sau
             </Button>
           </div>

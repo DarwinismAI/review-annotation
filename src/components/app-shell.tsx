@@ -4,6 +4,7 @@ import { isAdminRole, isAnnotatorRole } from "@/lib/roles";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
 import { AppMobileNav } from "./app-mobile-nav";
+import { FastResourceSession } from "./fast-resource-session";
 
 // ─── Props ─────────────────────────────────────────────────────────
 
@@ -50,9 +51,11 @@ export async function AppShell({ children, variant }: AppShellProps) {
             role: session.role,
           }}
         />
-        <main className="min-w-0 flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-[1800px] w-full mx-auto pb-20 lg:pb-6">
-          {children}
-        </main>
+        <FastResourceSession userId={session.userId}>
+          <main className="min-w-0 flex-1 px-4 py-4 lg:px-6 lg:py-6 max-w-[1800px] w-full mx-auto pb-20 lg:pb-6">
+            {children}
+          </main>
+        </FastResourceSession>
       </div>
       <AppMobileNav variant={variant} role={session.role} />
     </div>

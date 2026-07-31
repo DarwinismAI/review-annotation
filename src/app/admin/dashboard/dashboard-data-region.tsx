@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { Activity, ClipboardList, Database, Gauge, Users, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,58 +21,34 @@ interface DatasetListItem {
   createdAt: string;
 }
 
-interface MemberListItem {
-  id: string;
-  role: string;
-  annotatorStatus: string | null;
+interface AdminDashboardSnapshot {
+  totals: {
+    datasets: number;
+    rows: number;
+    metrics: number;
+    activeAnnotators: number;
+    readyDatasets?: number;
+    importingDatasets?: number;
+  };
+  recentDatasets: DatasetListItem[];
 }
 
-interface DatasetsPayload {
-  datasets?: DatasetListItem[];
-  summary?: DatasetSummary;
-}
-
-interface MembersPayload {
-  members?: MemberListItem[];
-}
-
-interface DatasetSummary {
-  datasetCount: number;
-  rowCount: number;
-  metricCount: number;
-  readyCount: number;
-  importingCount: number;
-}
-
-const EMPTY_SUMMARY: DatasetSummary = {
-  datasetCount: 0,
-  rowCount: 0,
-  metricCount: 0,
-  readyCount: 0,
-  importingCount: 0,
+const EMPTY_DASHBOARD: AdminDashboardSnapshot = {
+  totals: {
+    datasets: 0,
+    rows: 0,
+    metrics: 0,
+    activeAnnotators: 0,
+    readyDatasets: 0,
+    importingDatasets: 0,
+  },
+  recentDatasets: [],
 };
-const EMPTY_DATASETS: DatasetsPayload = { datasets: [], summary: EMPTY_SUMMARY };
-const EMPTY_MEMBERS: MembersPayload = { members: [] };
 
 export function DashboardDataRegion() {
-  const datasetsResource = useFastResource<DatasetsPayload>("/api/datasets?page=1&pageSize=5&summary=1&counts=1", EMPTY_DATASETS);
-  const membersResource = useFastResource<MembersPayload>("/api/admin/members", EMPTY_MEMBERS);
-  const datasets = datasetsResource.data.datasets ?? [];
-  const members = membersResource.data.members ?? [];
-  const summary = datasetsResource.data.summary ?? EMPTY_SUMMARY;
-  const error = datasetsResource.error ?? membersResource.error;
-
-  const stats = useMemo(() => {
-    return {
-      datasetCount: summary.datasetCount,
-      rowCount: summary.rowCount,
-      metricCount: summary.metricCount,
-      activeAnnotators: members.filter((member) => member.role === "annotator" && member.annotatorStatus === "active").length,
-      importingCount: summary.importingCount,
-      readyCount: summary.readyCount,
-      recentDatasets: datasets,
-    };
-  }, [datasets, members, summary]);
+  const dashboardResource = useFastResource<AdminDashboardSnapshot>("/api/admin/dashboard", EMPTY_DASHBOARD);
+  const stats = dashboardResource.data;
+  const error = dashboardResource.error;
 
   return (
     <>
@@ -82,10 +57,10 @@ export function DashboardDataRegion() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <OverviewCard icon={Database} label="Dataset" value={stats.datasetCount} loading={datasetsResource.isInitialLoading} helper={`${stats.readyCount} ready`} />
-        <OverviewCard icon={Activity} label="Dòng dữ liệu" value={stats.rowCount} loading={datasetsResource.isInitialLoading} helper={`${stats.importingCount} đang import`} />
-        <OverviewCard icon={ClipboardList} label="Metric" value={stats.metricCount} loading={datasetsResource.isInitialLoading} helper="Đang dùng để chấm" />
-        <OverviewCard icon={Users} label="Annotator active" value={stats.activeAnnotators} loading={membersResource.isInitialLoading} helper="Có thể nhận task" />
+        <OverviewCard icon={Database} label="Dataset" value={stats.totals.datasets} loading={dashboardResource.isInitialLoading} helper={`${stats.totals.readyDatasets ?? 0} ready`} />
+        <OverviewCard icon={Activity} label="Dòng dữ liệu" value={stats.totals.rows} loading={dashboardResource.isInitialLoading} helper={`${stats.totals.importingDatasets ?? 0} đang import`} />
+        <OverviewCard icon={ClipboardList} label="Metric" value={stats.totals.metrics} loading={dashboardResource.isInitialLoading} helper="Đang dùng để chấm" />
+        <OverviewCard icon={Users} label="Annotator active" value={stats.totals.activeAnnotators} loading={dashboardResource.isInitialLoading} helper="Có thể nhận task" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -102,7 +77,7 @@ export function DashboardDataRegion() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {datasetsResource.isInitialLoading && stats.recentDatasets.length === 0 &&
+              {dashboardResource.isInitialLoading && stats.recentDatasets.length === 0 &&
                 Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
                     <TableCell><Skeleton className="h-4 w-48" /></TableCell>
@@ -113,7 +88,7 @@ export function DashboardDataRegion() {
                     <TableCell><Skeleton className="ml-auto h-8 w-14" /></TableCell>
                   </TableRow>
                 ))}
-              {!datasetsResource.isInitialLoading && stats.recentDatasets.length === 0 && (
+              {!dashboardResource.isInitialLoading && stats.recentDatasets.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="h-20 text-slate-500">
                     Chưa có dataset.
@@ -136,7 +111,7 @@ export function DashboardDataRegion() {
                   </TableCell>
                 </TableRow>
               ))}
-              {datasetsResource.isRefreshing && stats.recentDatasets.length > 0 ? (
+              {dashboardResource.isRefreshing && stats.recentDatasets.length > 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-xs text-slate-400">
                     Đang cập nhật
