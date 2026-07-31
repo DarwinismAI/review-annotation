@@ -7,6 +7,7 @@ export type FastResourceStatus = "idle" | "loading" | "ready" | "refreshing" | "
 
 const DEFAULT_TTL_MS = 30000;
 const cache = new Map<string, { value: unknown; expiresAt: number }>();
+const pendingLoads = new Map<string, Promise<void>>();
 let currentSessionId: string | null = null;
 
 interface FastResourceState<T> {
@@ -49,6 +50,7 @@ export function invalidateFastResource(prefix: string) {
 
 export function clearFastResourceCache() {
   cache.clear();
+  pendingLoads.clear();
 }
 
 export function setFastResourceSession(userId: string | null) {
@@ -59,6 +61,37 @@ export function setFastResourceSession(userId: string | null) {
 
 function fastResourceKey(sessionId: string | null, url: string) {
   return `${sessionId ?? "anonymous"}:${url}`;
+}
+
+export async function preloadFastResource(url: string, ttlMs = DEFAULT_TTL_MS) {
+  const sessionKey = fastResourceKey(currentSessionId, url);
+  const cached = cache.get(sessionKey);
+  if (cached && cached.expiresAt > Date.now()) return;
+  const pending = pendingLoads.get(sessionKey);
+  if (pending) return pending;
+
+  const load = fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  })
+    .then(async (response) => {
+      let payload: unknown = null;
+      try {
+        payload = await readJsonResponse(response);
+      } catch (parseError) {
+        if (response.ok) throw parseError;
+      }
+      if (!response.ok) return;
+      if (fastResourceKey(currentSessionId, url) !== sessionKey) return;
+      cache.set(sessionKey, { value: payload, expiresAt: Date.now() + ttlMs });
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      pendingLoads.delete(sessionKey);
+    });
+
+  pendingLoads.set(sessionKey, load);
+  return load;
 }
 
 export function useFastResource<T>(url: string, initialData: T, ttlMs = DEFAULT_TTL_MS): FastResourceState<T> {

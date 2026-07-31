@@ -9,6 +9,9 @@ const devLogoutRoute = readFileSync("src/app/api/dev/logout/route.ts", "utf8");
 
 assert.match(fastResource, /export function setFastResourceSession\(userId: string \| null\)/);
 assert.match(fastResource, /export function clearFastResourceCache\(\)/);
+assert.match(fastResource, /export async function preloadFastResource\(url: string/);
+assert.match(fastResource, /const pendingLoads = new Map/);
+assert.match(fastResource, /fastResourceKey\(currentSessionId, url\)/);
 assert.match(fastResource, /currentSessionId/);
 assert.match(fastResource, /\$\{sessionId \?\? "anonymous"\}:\$\{url\}/);
 assert.doesNotMatch(fastResource, /cache\.get\(url\)/);

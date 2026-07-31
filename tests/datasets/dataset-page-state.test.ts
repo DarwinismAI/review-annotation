@@ -19,6 +19,8 @@ assert.match(fastResource, /status: initializedRef\.current \? "refreshing" : "l
 assert.doesNotMatch(fastResource, /initializedRef\.current && sameUrl \? "refreshing" : "loading"/);
 
 assert.match(dashboardRegion, /interface AdminDashboardSnapshot/);
+assert.match(dashboardRegion, /preloadFastResource/);
+assert.match(dashboardRegion, /preloadFastResource\("\/api\/admin\/members"\)/);
 assert.match(dashboardRegion, /useFastResource<AdminDashboardSnapshot>\("\/api\/admin\/dashboard"/);
 assert.doesNotMatch(dashboardRegion, /useFastResource<DatasetsPayload>\("\/api\/datasets/);
 assert.doesNotMatch(dashboardRegion, /useFastResource<MembersPayload>\("\/api\/admin\/members"/);

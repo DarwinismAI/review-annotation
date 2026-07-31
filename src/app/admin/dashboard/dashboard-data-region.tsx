@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { Activity, ClipboardList, Database, Gauge, Users, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useFastResource } from "@/hooks/use-fast-resource";
+import { preloadFastResource, useFastResource } from "@/hooks/use-fast-resource";
 import { labelForDomain } from "@/lib/labels";
 
 interface DatasetListItem {
@@ -49,6 +50,10 @@ export function DashboardDataRegion() {
   const dashboardResource = useFastResource<AdminDashboardSnapshot>("/api/admin/dashboard", EMPTY_DASHBOARD);
   const stats = dashboardResource.data;
   const error = dashboardResource.error;
+
+  useEffect(() => {
+    void preloadFastResource("/api/admin/members");
+  }, []);
 
   return (
     <>
