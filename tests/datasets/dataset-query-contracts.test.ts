@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 const datasetsRoute = readFileSync("src/app/api/datasets/route.ts", "utf8");
 const membersRoute = readFileSync("src/app/api/admin/members/route.ts", "utf8");
 const rubricsRoute = readFileSync("src/app/api/rubrics/route.ts", "utf8");
+const taskGroupsRoute = readFileSync("src/app/api/annotator/task-groups/route.ts", "utf8");
 const dashboardRoutePath = "src/app/api/admin/dashboard/route.ts";
 
 assert.match(datasetsRoute, /db\.execute\(\s*sql`[\s\S]*page_datasets/i);
@@ -36,3 +37,8 @@ assert.match(membersRoute, /orderBy\(/);
 assert.doesNotMatch(rubricsRoute, /Promise\.all/);
 assert.doesNotMatch(rubricsRoute, /db\.select\(\)\.from\(rubrics\)/);
 assert.match(rubricsRoute, /leftJoin\(rubricCriteria/);
+
+assert.match(taskGroupsRoute, /GET\s*=\s*requireAnnotator\(async \(_req,\s*session,\s*context\)/);
+assert.match(taskGroupsRoute, /context\.timing\.measure\("sql"/);
+assert.match(taskGroupsRoute, /allMetricIds/);
+assert.match(taskGroupsRoute, /inArray/);
