@@ -5,9 +5,23 @@ import { normalizeRole, type AppRole } from "@/lib/roles";
 import { clearFastResourceCache, setFastResourceSession } from "@/hooks/use-fast-resource";
 
 export async function signOut() {
-  const supabase = getSupabaseBrowser();
   clearFastResourceCache();
   setFastResourceSession(null);
+
+  const isLocalhost =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocalhost) {
+    const localRes = await fetch("/api/dev/logout", { method: "POST" });
+    clearFastResourceCache();
+    setFastResourceSession(null);
+    if (localRes.status !== 404) {
+      if (localRes.ok) return;
+      const body = (await localRes.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? "Đăng xuất thất bại");
+    }
+  }
+
+  const supabase = getSupabaseBrowser();
   try {
     await supabase.auth.signOut();
   } finally {

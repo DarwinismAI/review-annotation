@@ -5,6 +5,7 @@ const fastResource = readFileSync("src/hooks/use-fast-resource.ts", "utf8");
 const authClient = readFileSync("src/lib/auth-client.ts", "utf8");
 const appShell = readFileSync("src/components/app-shell.tsx", "utf8");
 const fastResourceSessionPath = "src/components/fast-resource-session.tsx";
+const devLogoutRoute = readFileSync("src/app/api/dev/logout/route.ts", "utf8");
 
 assert.match(fastResource, /export function setFastResourceSession\(userId: string \| null\)/);
 assert.match(fastResource, /export function clearFastResourceCache\(\)/);
@@ -15,8 +16,19 @@ assert.doesNotMatch(fastResource, /cache\.set\(url,/);
 
 assert.match(authClient, /clearFastResourceCache\(\);[\s\S]*signInWithPassword/);
 assert.match(authClient, /clearFastResourceCache\(\);[\s\S]*signOut/);
+assert.match(authClient, /isLocalhost/);
+assert.match(authClient, /fetch\("\/api\/dev\/logout", \{ method: "POST" \}\)/);
+assert.match(authClient, /localRes\.status !== 404/);
+assert.match(authClient, /return;/);
 assert.match(authClient, /setFastResourceSession\(user\.id\)/);
 assert.match(authClient, /setFastResourceSession\(null\)/);
+
+assert.match(devLogoutRoute, /export async function POST/);
+assert.match(devLogoutRoute, /isLocalDevelopment\(\)/);
+assert.match(devLogoutRoute, /response\.cookies\.set\("dev_role", ""/);
+assert.match(devLogoutRoute, /maxAge: 0/);
+assert.match(devLogoutRoute, /httpOnly: true/);
+assert.match(devLogoutRoute, /sameSite: "lax"/);
 
 assert.match(appShell, /import \{ FastResourceSession \} from "\.\/fast-resource-session";/);
 assert.match(appShell, /<FastResourceSession userId=\{session\.userId\}>/);
