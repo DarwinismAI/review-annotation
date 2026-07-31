@@ -19,6 +19,7 @@ import "./admin-row-navigation.test";
 import "./fast-resource-session.test";
 import "./dataset-page-state.test";
 import "./admin-row-navigation-ui.test";
+import "./annotation-persistence-verifier.test";
 import "./datasets-route.test";
 
 console.log("dataset helper tests passed");

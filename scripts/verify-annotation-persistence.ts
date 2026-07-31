@@ -286,7 +286,7 @@ async function main() {
 
     const firstNext = await apiJson<{ done: boolean; nextTaskId: string | null }>(baseUrl, annotatorJar, `/api/annotator/task-groups/${group.id}/next`);
     if (!firstNext.nextTaskId) throw new Error("PERSISTENCE: no first task available");
-    const firstTask = await apiJson<{ task: { id: string; rowId: string; metrics: Array<{ id: string }> } }>(baseUrl, annotatorJar, `/api/annotator/tasks/${firstNext.nextTaskId}`);
+    const firstTask = await apiJson<{ task: { id: string; metrics: Array<{ id: string }> } }>(baseUrl, annotatorJar, `/api/annotator/tasks/${firstNext.nextTaskId}`);
 
     evidence.before = {
       assignments: (await directAssignments([firstTask.task.id])).map(redactAssignment),
@@ -310,7 +310,9 @@ async function main() {
     });
     const submittedAssignments = await directAssignments([firstTask.task.id]);
     const submittedResults = await directResults(firstTask.task.id);
-    if (submittedAssignments[0]?.status !== "completed") throw new Error("PERSISTENCE: submit did not complete assignment");
+    const submittedAssignment = submittedAssignments[0];
+    if (!submittedAssignment) throw new Error("PERSISTENCE: submitted assignment was not found");
+    if (submittedAssignment.status !== "completed") throw new Error("PERSISTENCE: submit did not complete assignment");
     if (submittedResults[0]?.value !== "Pass" || submittedResults[0]?.note !== "submit persisted") {
       throw new Error("PERSISTENCE: submit result values were not persisted");
     }
@@ -323,11 +325,13 @@ async function main() {
       throw new Error("PERSISTENCE: skip state was not persisted");
     }
 
-    await apiJson<{ adjudications: unknown[] }>(baseUrl, adminJar, `/api/datasets/${datasetId}/rows/${firstTask.task.rowId}/adjudication`, {
+    const adjudicationRowId = submittedAssignment.rowId;
+    if (!adjudicationRowId) throw new Error("PERSISTENCE: submitted assignment has no row id");
+    await apiJson<{ adjudications: unknown[] }>(baseUrl, adminJar, `/api/datasets/${datasetId}/rows/${adjudicationRowId}/adjudication`, {
       method: "POST",
       body: JSON.stringify({ values: { [metricId]: "Failed" }, notes: { [metricId]: "adjudication persisted" } }),
     });
-    const adjudications = await directAdjudications(datasetId, firstTask.task.rowId);
+    const adjudications = await directAdjudications(datasetId, adjudicationRowId);
     if (adjudications[0]?.value !== "Failed" || adjudications[0]?.note !== "adjudication persisted") {
       throw new Error("PERSISTENCE: adjudication values were not persisted");
     }
