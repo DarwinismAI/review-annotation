@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { expertProfiles, profiles } from "@/db/schema";
 import { requireAdmin, requireSuperAdmin } from "@/lib/auth-middleware";
@@ -28,13 +28,12 @@ export const GET = requireAdmin(async (_req, session) => {
       updatedAt: profiles.updatedAt,
     })
     .from(profiles)
-    .leftJoin(expertProfiles, eq(expertProfiles.userId, profiles.id));
+    .leftJoin(expertProfiles, eq(expertProfiles.userId, profiles.id))
+    .orderBy(asc(profiles.email));
 
   return NextResponse.json({
     canManageRoles: isSuperAdminRole(session.user.role),
-    members: rows
-      .map((row: any) => ({ ...row, role: resolveEffectiveRole(row.role, row.email) }))
-      .sort((a: any, b: any) => String(a.email).localeCompare(String(b.email))),
+    members: rows.map((row: any) => ({ ...row, role: resolveEffectiveRole(row.role, row.email) })),
   });
 });
 

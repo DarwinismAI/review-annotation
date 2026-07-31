@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { annotationAssignments, annotationResults, datasetRows, datasets } from "@/db/datasets";
 import { profiles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
 import { computeAgreement, computeRowProgress, type RowAssignmentForAggregation } from "@/lib/datasets/aggregation";
+import { buildCompletionSql, normalizeDatasetRowFilters, rowsFromResult } from "@/lib/datasets/admin-row-query";
 import { projectFields, type JsonRecord } from "@/lib/datasets/import-validation";
 
 type DatasetRowListRecord = { id: string; internalRowId: number; rawJson: unknown };
+type DatasetRowQueryRecord = DatasetRowListRecord & {
+  filteredTotal: number | string;
+  isTotalRow?: number | string | null;
+};
 type DatasetRowAssignmentRecord = {
   rowId: string;
   annotatorId: string;
@@ -41,36 +46,62 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
   const { searchParams } = new URL(req.url);
   const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50), 1), 100);
-  const q = searchParams.get("q")?.trim().toLowerCase() ?? "";
-  const completion = searchParams.get("completion") ?? "";
   const fieldMode = searchParams.get("fields") === "detail" ? "detail" : "list";
+  const filters = normalizeDatasetRowFilters(searchParams);
+  const offset = (page - 1) * pageSize;
+  const searchPredicate = filters.search
+    ? sql`and (cast(dr.internal_row_id as text) = ${filters.search} or lower(cast(dr.raw_json as text)) like ${`%${filters.search}%`})`
+    : sql``;
+  const completionPredicate = buildCompletionSql(filters.completion);
 
-  const [datasetResult, totalResult, pageRowResult] = await Promise.all([
-    db
-      .select({
-        id: datasets.id,
-        displayConfig: datasets.displayConfig,
-      })
-      .from(datasets)
-      .where(eq(datasets.id, datasetId)),
-    db.select({ total: count() }).from(datasetRows).where(eq(datasetRows.datasetId, datasetId)),
-    db
-      .select({
-        id: datasetRows.id,
-        internalRowId: datasetRows.internalRowId,
-        rawJson: datasetRows.rawJson,
-      })
-      .from(datasetRows)
-      .where(eq(datasetRows.datasetId, datasetId))
-      .orderBy(asc(datasetRows.internalRowId))
-      .limit(pageSize)
-      .offset((page - 1) * pageSize),
+  const [datasetResult, pageRowResult] = await Promise.all([
+    db.select({ id: datasets.id, displayConfig: datasets.displayConfig }).from(datasets).where(eq(datasets.id, datasetId)),
+    db.execute(sql`
+      with assignment_progress as (
+        select
+          row_id,
+          max(target_overlap) as target_overlap,
+          sum(case when status = 'completed' then 1 else 0 end) as completed_count
+        from annotation_assignments
+        where dataset_id = ${datasetId}
+        group by row_id
+      ),
+      filtered_rows as (
+        select
+          dr.id,
+          dr.internal_row_id as "internalRowId",
+          dr.raw_json as "rawJson",
+          coalesce(ap.target_overlap, 0) as target_overlap,
+          coalesce(ap.completed_count, 0) as completed_count
+        from dataset_rows dr
+        left join assignment_progress ap on ap.row_id = dr.id
+        where dr.dataset_id = ${datasetId}
+        ${searchPredicate}
+        ${completionPredicate}
+      ),
+      filtered_total as (
+        select count(*) as total from filtered_rows
+      ),
+      page_rows as (
+        select *, count(*) over() as "filteredTotal"
+        from filtered_rows
+        order by "internalRowId" asc
+        LIMIT ${pageSize} OFFSET ${offset}
+      )
+      select id, "internalRowId", "rawJson", "filteredTotal", 0 as "isTotalRow"
+      from page_rows
+      union all
+      select null as id, null as "internalRowId", null as "rawJson", total as "filteredTotal", 1 as "isTotalRow"
+      from filtered_total
+      where not exists (select 1 from page_rows)
+    `),
   ]);
   const [dataset] = datasetResult;
   if (!dataset) return NextResponse.json({ error: "DATASET_NOT_FOUND" }, { status: 404 });
 
-  const [{ total }] = totalResult;
-  const pageRows = pageRowResult as DatasetRowListRecord[];
+  const queryRows = rowsFromResult<DatasetRowQueryRecord>(pageRowResult);
+  const total = Number(queryRows[0]?.filteredTotal ?? 0);
+  const pageRows = queryRows.filter((record) => !Number(record.isTotalRow)) as DatasetRowListRecord[];
   const rowIds = pageRows.map((row) => row.id);
 
   const [assignmentRows, resultRows]: [DatasetRowAssignmentRecord[], DatasetRowResultRecord[]] =
@@ -128,16 +159,6 @@ export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
         ...progress,
         agreement: computeAgreement((resultsByRow.get(row.id) ?? []).filter(hasAgreementValue)),
       };
-    })
-    // Search and completion are page-scoped to keep this API bounded across Postgres and local SQLite.
-    .filter((row) => {
-      if (!q) return true;
-      return String(row.internalRowId) === q || JSON.stringify(row.listFields).toLowerCase().includes(q);
-    })
-    .filter((row) => {
-      if (completion === "completed") return row.completedCount >= row.completedCount + row.missingCount && row.completedCount > 0;
-      if (completion === "incomplete") return row.missingCount > 0;
-      return true;
     });
 
   return NextResponse.json({

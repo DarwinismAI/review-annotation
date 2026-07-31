@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
-import { and, asc, count, desc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationMetrics, datasetImports, datasetRows, datasets } from "@/db/datasets";
 import { rubricCriteria, rubrics } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-middleware";
+import { rowsFromResult } from "@/lib/datasets/admin-row-query";
 import {
   computeRequiredAppendFields,
   inspectDatasetRows,
@@ -28,6 +29,23 @@ const createDatasetSchema = z.object({
 });
 
 const ROW_INSERT_CHUNK_SIZE = 500;
+
+type DatasetListQueryRow = {
+  id: string;
+  name: string;
+  domain: string;
+  status: string;
+  createdAt: Date | string;
+  rowCount: number | string | null;
+  metricCount: number | string | null;
+  latestImport: string | null;
+  datasetTotal: number | string;
+  summaryDatasetCount?: number | string | null;
+  summaryRowCount?: number | string | null;
+  summaryMetricCount?: number | string | null;
+  summaryReadyCount?: number | string | null;
+  summaryImportingCount?: number | string | null;
+};
 
 function getSourceId(row: JsonRecord): string | null {
   const candidate = row.id ?? row._id ?? row.uuid;
@@ -113,106 +131,127 @@ export const GET = requireAdmin(async (req: NextRequest) => {
   const includeImportCounts = searchParams.get("counts") === "1";
   const offset = (page - 1) * pageSize;
 
-  const [datasetTotalRows, pagedDatasets] = await Promise.all([
-    db.select({ total: count() }).from(datasets),
-    db
-      .select({
-        id: datasets.id,
-        name: datasets.name,
-        domain: datasets.domain,
-        status: datasets.status,
-        createdAt: datasets.createdAt,
-      })
-      .from(datasets)
-      .orderBy(desc(datasets.createdAt))
-      .limit(pageSize)
-      .offset(offset),
-  ]);
-  const [{ total: datasetTotal } = { total: 0 }] = datasetTotalRows;
-  const datasetIds = pagedDatasets.map((dataset: any) => dataset.id);
-  let rowCounts: Array<{ datasetId: string; total: number }> = [];
-  let metricCounts: Array<{ datasetId: string; total: number }> = [];
-  let allImports: Array<{ datasetId: string; sourceFilename: string }> = [];
-  if (includeImportCounts && datasetIds.length > 0) {
-    const latestImportTimes = db
-      .select({
-        datasetId: datasetImports.datasetId,
-        latestCreatedAt: max(datasetImports.createdAt).as("latest_created_at"),
-      })
-      .from(datasetImports)
-      .where(inArray(datasetImports.datasetId, datasetIds))
-      .groupBy(datasetImports.datasetId)
-      .as("latest_import_times");
-    [rowCounts, metricCounts, allImports] = await Promise.all([
-      db
-        .select({ datasetId: datasetRows.datasetId, total: count() })
-        .from(datasetRows)
-        .where(inArray(datasetRows.datasetId, datasetIds))
-        .groupBy(datasetRows.datasetId),
-      db
-        .select({ datasetId: annotationMetrics.datasetId, total: count() })
-        .from(annotationMetrics)
-        .where(inArray(annotationMetrics.datasetId, datasetIds))
-        .groupBy(annotationMetrics.datasetId),
-      db
-        .select({ datasetId: datasetImports.datasetId, sourceFilename: datasetImports.sourceFilename })
-        .from(datasetImports)
-        .innerJoin(
-          latestImportTimes,
-          and(eq(datasetImports.datasetId, latestImportTimes.datasetId), eq(datasetImports.createdAt, latestImportTimes.latestCreatedAt)),
-        )
-        .orderBy(desc(datasetImports.createdAt)),
-    ]);
-  }
+  const importCountCtes = includeImportCounts
+    ? sql`,
+      page_row_counts as (
+        select dataset_id, count(*) as total
+        from dataset_rows
+        where dataset_id in (select id from page_datasets)
+        group by dataset_id
+      ),
+      page_metric_counts as (
+        select dataset_id, count(*) as total
+        from annotation_metrics
+        where dataset_id in (select id from page_datasets)
+        group by dataset_id
+      ),
+      latest_imports as (
+        select dataset_id, source_filename
+        from (
+          select dataset_id, source_filename, row_number() over (partition by dataset_id order by created_at desc, id desc) as rank
+          from dataset_imports
+          where dataset_id in (select id from page_datasets)
+        ) ranked_imports
+        where rank = 1
+      )`
+    : sql``;
+  const importCountJoins = includeImportCounts
+    ? sql`
+      left join page_row_counts prc on prc.dataset_id = pd.id
+      left join page_metric_counts pmc on pmc.dataset_id = pd.id
+      left join latest_imports li on li.dataset_id = pd.id`
+    : sql``;
+  const rowCountSelect = includeImportCounts ? sql`coalesce(prc.total, 0)` : sql`0`;
+  const metricCountSelect = includeImportCounts ? sql`coalesce(pmc.total, 0)` : sql`0`;
+  const latestImportSelect = includeImportCounts ? sql`li.source_filename` : sql`null`;
+  const summaryCte = includeSummary
+    ? sql`,
+      summary_totals as (
+        select
+          (select count(*) from datasets) as dataset_count,
+          (select count(*) from dataset_rows) as row_count,
+          (select count(*) from annotation_metrics) as metric_count,
+          (select count(*) from datasets where status = 'ready') as ready_count,
+          (select count(*) from datasets where status = 'importing') as importing_count
+      )`
+    : sql``;
+  const summaryJoin = includeSummary ? sql`cross join summary_totals st` : sql``;
+  const summarySelect = includeSummary
+    ? sql`,
+      st.dataset_count as "summaryDatasetCount",
+      st.row_count as "summaryRowCount",
+      st.metric_count as "summaryMetricCount",
+      st.ready_count as "summaryReadyCount",
+      st.importing_count as "summaryImportingCount"`
+    : sql``;
 
-  const rowCount = new Map<string, number>();
-  for (const row of rowCounts) rowCount.set(row.datasetId, row.total);
-
-  const metricCount = new Map<string, number>();
-  for (const metric of metricCounts) metricCount.set(metric.datasetId, metric.total);
-
-  const latestImport = new Map<string, string>();
-  for (const item of allImports) {
-    if (!latestImport.has(item.datasetId)) latestImport.set(item.datasetId, item.sourceFilename);
-  }
-
-  let summary:
-    | {
-        datasetCount: number;
-        rowCount: number;
-        metricCount: number;
-        readyCount: number;
-        importingCount: number;
-      }
-    | undefined;
-  if (includeSummary) {
-    const [rowTotalRows, metricTotalRows, statusCounts] = await Promise.all([
-      db.select({ total: count() }).from(datasetRows),
-      db.select({ total: count() }).from(annotationMetrics),
-      db.select({ status: datasets.status, total: count() }).from(datasets).groupBy(datasets.status),
-    ]);
-    const [{ total: rowTotal } = { total: 0 }] = rowTotalRows;
-    const [{ total: metricTotal } = { total: 0 }] = metricTotalRows;
-    const statusCount = new Map<string, number>();
-    for (const status of statusCounts) statusCount.set(status.status, status.total);
-    summary = {
-      datasetCount: datasetTotal,
-      rowCount: rowTotal,
-      metricCount: metricTotal,
-      readyCount: statusCount.get("ready") ?? 0,
-      importingCount: statusCount.get("importing") ?? 0,
-    };
-  }
+  const queryRows = rowsFromResult<DatasetListQueryRow>(
+    await db.execute(sql`
+      with page_datasets as (
+        select id, name, domain, status, created_at
+        from datasets
+        order by created_at desc, id desc
+        limit ${pageSize} offset ${offset}
+      ),
+      dataset_total as (
+        select count(*) as total from datasets
+      )
+      ${importCountCtes}
+      ${summaryCte}
+      select
+        pd.id,
+        pd.name,
+        pd.domain,
+        pd.status,
+        pd.created_at as "createdAt",
+        ${rowCountSelect} as "rowCount",
+        ${metricCountSelect} as "metricCount",
+        ${latestImportSelect} as "latestImport",
+        dt.total as "datasetTotal"
+        ${summarySelect}
+      from page_datasets pd
+      cross join dataset_total dt
+      ${summaryJoin}
+      ${importCountJoins}
+      union all
+      select
+        null as id,
+        null as name,
+        null as domain,
+        null as status,
+        null as "createdAt",
+        0 as "rowCount",
+        0 as "metricCount",
+        null as "latestImport",
+        dt.total as "datasetTotal"
+        ${summarySelect}
+      from dataset_total dt
+      ${summaryJoin}
+      where not exists (select 1 from page_datasets)
+    `),
+  );
+  const datasetTotal = Number(queryRows[0]?.datasetTotal ?? 0);
+  const datasetsPayload = queryRows.filter((dataset) => dataset.id);
+  const summary =
+    includeSummary && queryRows[0]
+      ? {
+          datasetCount: Number(queryRows[0].summaryDatasetCount ?? 0),
+          rowCount: Number(queryRows[0].summaryRowCount ?? 0),
+          metricCount: Number(queryRows[0].summaryMetricCount ?? 0),
+          readyCount: Number(queryRows[0].summaryReadyCount ?? 0),
+          importingCount: Number(queryRows[0].summaryImportingCount ?? 0),
+        }
+      : undefined;
 
   return NextResponse.json({
-    datasets: pagedDatasets.map((dataset: any) => ({
+    datasets: datasetsPayload.map((dataset) => ({
       id: dataset.id,
       name: dataset.name,
       domain: dataset.domain,
       status: dataset.status,
-      rowCount: rowCount.get(dataset.id) ?? 0,
-      metricCount: metricCount.get(dataset.id) ?? 0,
-      latestImport: latestImport.get(dataset.id) ?? null,
+      rowCount: Number(dataset.rowCount ?? 0),
+      metricCount: Number(dataset.metricCount ?? 0),
+      latestImport: dataset.latestImport ?? null,
       createdAt: dataset.createdAt,
     })),
     page,
