@@ -13,11 +13,25 @@ assert.equal((workflow.match(/^  apply-annotation-queue-migration:/gm) ?? []).le
 assert.match(workflow, /^    environment: \$\{\{ inputs\.target \}\}$/m);
 assert.match(workflow, /^    name: Apply annotation queue migration \(\$\{\{ inputs\.target \}\}\)$/m);
 
-assert.match(
-  workflow,
-  /DATABASE_URL: \$\{\{ inputs\.target == 'dev' && \(secrets\.DEV_DATABASE_URL \|\| secrets\.DEV_POSTGRES_URL\) \|\| \(secrets\.PROD_DATABASE_URL \|\| secrets\.DATABASE_URL \|\| secrets\.PROD_POSTGRES_URL \|\| secrets\.POSTGRES_URL\) \}\}/,
-);
-assert.match(workflow, /pnpm exec tsx scripts\/apply-annotation-queue-migration\.ts/);
+assert.match(workflow, /TARGET: \$\{\{ inputs\.target \}\}/);
+assert.match(workflow, /DEV_DATABASE_URL: \$\{\{ secrets\.DEV_DATABASE_URL \}\}/);
+assert.match(workflow, /DEV_POSTGRES_URL: \$\{\{ secrets\.DEV_POSTGRES_URL \}\}/);
+assert.match(workflow, /PROD_DATABASE_URL: \$\{\{ secrets\.PROD_DATABASE_URL \}\}/);
+assert.match(workflow, /PROD_POSTGRES_URL: \$\{\{ secrets\.PROD_POSTGRES_URL \}\}/);
+assert.match(workflow, /if \[ "\$TARGET" = "dev" \]; then/);
+assert.match(workflow, /database_url="\$\{DEV_DATABASE_URL:-\$\{DEV_POSTGRES_URL:-\}\}"/);
+assert.match(workflow, /database_url="\$\{PROD_DATABASE_URL:-\$\{PROD_POSTGRES_URL:-\}\}"/);
+assert.match(workflow, /\[ -z "\$database_url" \]/);
+assert.match(workflow, /DATABASE_URL="\$database_url" pnpm exec tsx scripts\/apply-annotation-queue-migration\.ts/);
+
+assert.doesNotMatch(workflow, /DEV_DATABASE_URL[^\n]*PROD_/);
+assert.doesNotMatch(workflow, /DEV_POSTGRES_URL[^\n]*PROD_/);
+assert.doesNotMatch(workflow, /PROD_DATABASE_URL[^\n]*DEV_/);
+assert.doesNotMatch(workflow, /PROD_POSTGRES_URL[^\n]*DEV_/);
+assert.doesNotMatch(workflow, /secrets\.DATABASE_URL/);
+assert.doesNotMatch(workflow, /secrets\.POSTGRES_URL/);
+assert.doesNotMatch(workflow, /GITHUB_ENV/);
+assert.doesNotMatch(workflow, /DATABASE_URL_EOF/);
 
 assert.doesNotMatch(workflow, /echo\s+.*secrets\./i);
 assert.doesNotMatch(workflow, /DATABASE_URL=.*\$\{\{ secrets\./);

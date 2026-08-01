@@ -17,7 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target }}
     env:
-      DATABASE_URL: ${{ inputs.target == 'dev' && (secrets.DEV_DATABASE_URL || secrets.DEV_POSTGRES_URL) || (secrets.PROD_DATABASE_URL || secrets.DATABASE_URL || secrets.PROD_POSTGRES_URL || secrets.POSTGRES_URL) }}
+      TARGET: ${{ inputs.target }}
+      DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+      DEV_POSTGRES_URL: ${{ secrets.DEV_POSTGRES_URL }}
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      PROD_POSTGRES_URL: ${{ secrets.PROD_POSTGRES_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,4 +37,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Apply annotation queue migration (${{ inputs.target }})
-        run: pnpm exec tsx scripts/apply-annotation-queue-migration.ts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$TARGET" = "dev" ]; then
+            database_url="${DEV_DATABASE_URL:-${DEV_POSTGRES_URL:-}}"
+          else
+            database_url="${PROD_DATABASE_URL:-${PROD_POSTGRES_URL:-}}"
+          fi
+
+          if [ -z "$database_url" ]; then
+            printf '%s\n' "::error::Required database secret is empty for target: $TARGET" >&2
+            exit 1
+          fi
+
+          DATABASE_URL="$database_url" pnpm exec tsx scripts/apply-annotation-queue-migration.ts
