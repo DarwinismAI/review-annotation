@@ -16,12 +16,6 @@ jobs:
     name: Apply annotation queue migration (${{ inputs.target }})
     runs-on: ubuntu-latest
     environment: ${{ inputs.target }}
-    env:
-      TARGET: ${{ inputs.target }}
-      DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
-      DEV_POSTGRES_URL: ${{ secrets.DEV_POSTGRES_URL }}
-      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-      PROD_POSTGRES_URL: ${{ secrets.PROD_POSTGRES_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,19 +30,37 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Apply annotation queue migration (${{ inputs.target }})
+      - name: Apply annotation queue migration (dev)
+        if: inputs.target == 'dev'
         shell: bash
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.DEV_DATABASE_URL }}
+          POSTGRES_URL_SECRET: ${{ secrets.DEV_POSTGRES_URL }}
         run: |
           set -euo pipefail
 
-          if [ "$TARGET" = "dev" ]; then
-            database_url="${DEV_DATABASE_URL:-${DEV_POSTGRES_URL:-}}"
-          else
-            database_url="${PROD_DATABASE_URL:-${PROD_POSTGRES_URL:-}}"
-          fi
+          database_url="${DATABASE_URL_SECRET:-${POSTGRES_URL_SECRET:-}}"
 
           if [ -z "$database_url" ]; then
-            printf '%s\n' "::error::Required database secret is empty for target: $TARGET" >&2
+            printf '%s\n' "::error::Required database secret is empty for target: dev" >&2
+            exit 1
+          fi
+
+          DATABASE_URL="$database_url" pnpm exec tsx scripts/apply-annotation-queue-migration.ts
+
+      - name: Apply annotation queue migration (prod)
+        if: inputs.target == 'prod'
+        shell: bash
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.PROD_DATABASE_URL }}
+          POSTGRES_URL_SECRET: ${{ secrets.PROD_POSTGRES_URL }}
+        run: |
+          set -euo pipefail
+
+          database_url="${DATABASE_URL_SECRET:-${POSTGRES_URL_SECRET:-}}"
+
+          if [ -z "$database_url" ]; then
+            printf '%s\n' "::error::Required database secret is empty for target: prod" >&2
             exit 1
           fi
 
