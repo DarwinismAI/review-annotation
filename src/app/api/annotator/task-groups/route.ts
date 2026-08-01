@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { count, eq, inArray, sql } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { annotationAssignments, annotationMetrics, datasets } from "@/db/datasets";
-import { requireAnnotator } from "@/lib/auth-middleware";
+import { annotationAssignments, datasets } from "@/db/datasets";
+import { requireAnnotatorRead } from "@/lib/auth-middleware";
 
 function toIso(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value);
@@ -17,6 +17,7 @@ type TaskGroupRow = {
   totalCount: number;
   skippedCount: number;
   assignedAt: Date | string;
+  metricLabels: unknown;
 };
 
 type TaskGroupSummary = {
@@ -29,11 +30,17 @@ type TaskGroupSummary = {
   skippedCount: number;
   startedCount: number;
   assignedAt: string;
+  metricLabels: string[];
 };
 
-export const GET = requireAnnotator(async (_req, session, context) => {
-  const { groupRows, metricLabels } = await context.timing.measure("sql", async () => {
-    const groupRows: TaskGroupRow[] = await db
+function normalizeMetricLabels(value: unknown): string[] {
+  const parsed = typeof value === "string" ? JSON.parse(value) : value;
+  return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+}
+
+export const GET = requireAnnotatorRead(async (_req, claims, context) => {
+  const groupRows: TaskGroupRow[] = await context.timing.measure("sql", async () =>
+    await db
       .select({
         assignmentRunId: annotationAssignments.assignmentRunId,
         datasetId: annotationAssignments.datasetId,
@@ -44,10 +51,15 @@ export const GET = requireAnnotator(async (_req, session, context) => {
         totalCount: count(),
         skippedCount: sql<number>`sum(case when ${annotationAssignments.status} <> 'completed' and ${annotationAssignments.skippedAt} is not null then 1 else 0 end)`,
         assignedAt: sql<Date | string>`min(${annotationAssignments.assignedAt})`,
+        metricLabels: sql<unknown>`coalesce((
+          select jsonb_agg(am.label order by metric_item.ordinality)
+          from jsonb_array_elements_text(${annotationAssignments.metricIds}) with ordinality as metric_item(metric_id, ordinality)
+          inner join annotation_metrics am on am.id = metric_item.metric_id
+        ), '[]'::jsonb)`,
       })
       .from(annotationAssignments)
       .innerJoin(datasets, eq(annotationAssignments.datasetId, datasets.id))
-      .where(eq(annotationAssignments.annotatorId, session.user.id))
+      .where(eq(annotationAssignments.annotatorId, claims.user.id))
       .groupBy(
         annotationAssignments.assignmentRunId,
         annotationAssignments.datasetId,
@@ -56,18 +68,8 @@ export const GET = requireAnnotator(async (_req, session, context) => {
         annotationAssignments.metricKey,
         annotationAssignments.status,
       )
-      .orderBy(sql`min(${annotationAssignments.assignedAt})`);
-
-    const allMetricIds: string[] = Array.from(new Set(groupRows.flatMap((group: TaskGroupRow) => group.metricIds)));
-    const metrics =
-      allMetricIds.length > 0
-        ? await db.select({ id: annotationMetrics.id, label: annotationMetrics.label }).from(annotationMetrics).where(inArray(annotationMetrics.id, allMetricIds))
-        : [];
-    return {
-      groupRows,
-      metricLabels: new Map(metrics.map((metric: any) => [metric.id, metric.label])),
-    };
-  });
+      .orderBy(sql`min(${annotationAssignments.assignedAt})`)
+  );
 
   const groups = new Map<string, TaskGroupSummary>();
   for (const row of groupRows) {
@@ -87,6 +89,7 @@ export const GET = requireAnnotator(async (_req, session, context) => {
         skippedCount: Number(row.skippedCount),
         startedCount: started,
         assignedAt,
+        metricLabels: normalizeMetricLabels(row.metricLabels),
       });
       continue;
     }
@@ -95,6 +98,7 @@ export const GET = requireAnnotator(async (_req, session, context) => {
     existing.skippedCount += Number(row.skippedCount);
     existing.startedCount += started;
     if (assignedAt < existing.assignedAt) existing.assignedAt = assignedAt;
+    if (existing.metricLabels.length === 0) existing.metricLabels = normalizeMetricLabels(row.metricLabels);
   }
 
   return NextResponse.json({
@@ -103,7 +107,7 @@ export const GET = requireAnnotator(async (_req, session, context) => {
       assignmentRunId: group.assignmentRunId,
       datasetId: group.datasetId,
       datasetName: group.datasetName,
-      metricLabels: group.metricIds.map((metricId) => metricLabels.get(metricId)).filter(Boolean),
+      metricLabels: group.metricLabels,
       totalCount: group.totalCount,
       submittedCount: group.submittedCount,
       remainingCount: group.totalCount - group.submittedCount,

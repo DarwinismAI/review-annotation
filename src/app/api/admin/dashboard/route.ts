@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { requireAdmin } from "@/lib/auth-middleware";
+import { requireAdminRead } from "@/lib/auth-middleware";
 import { rowsFromResult } from "@/lib/datasets/admin-row-query";
 
 type DashboardSnapshotRow = {
@@ -21,7 +21,7 @@ type DashboardSnapshotRow = {
   activeAnnotators: number | string;
 };
 
-export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
+export const GET = requireAdminRead(async (req, _claims, context) => {
   const { searchParams } = new URL(req.url);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 5) || 5, 1), 20);
   const bootstrapSuperadminEmails = (process.env.SUPERADMIN_EMAILS ?? "")

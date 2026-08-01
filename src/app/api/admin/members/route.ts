@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { expertProfiles, profiles } from "@/db/schema";
-import { requireAdmin, requireSuperAdmin } from "@/lib/auth-middleware";
+import { requireAdminRead, requireSuperAdmin } from "@/lib/auth-middleware";
 import { isSuperAdminRole, normalizeRole, resolveEffectiveRole } from "@/lib/roles";
 
 const MANAGED_ROLES = new Set(["admin", "annotator"]);
@@ -14,7 +14,7 @@ function isLegacyRoleConstraintError(error: unknown): boolean {
   return /role_check|profiles_role_check|check constraint|CHECK constraint/i.test(message);
 }
 
-export const GET = requireAdmin(async (_req, session, context) => {
+export const GET = requireAdminRead(async (_req, _claims, context) => {
   const queryMembers = async () =>
     await db
       .select({
@@ -32,6 +32,7 @@ export const GET = requireAdmin(async (_req, session, context) => {
       .leftJoin(expertProfiles, eq(expertProfiles.userId, profiles.id))
       .orderBy(asc(profiles.email));
   const rows = await context.timing.measure("sql", queryMembers);
+  const session = await context.session;
 
   return NextResponse.json({
     canManageRoles: isSuperAdminRole(session.user.role),

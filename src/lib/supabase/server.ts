@@ -53,6 +53,12 @@ export interface AppSession {
   role: AppRole;
 }
 
+export interface VerifiedSessionClaims {
+  userId: string;
+  email: string;
+  devRole?: AppRole;
+}
+
 type ProfileSessionRow = {
   email: string;
   name: string | null;
@@ -68,7 +74,7 @@ function measure<T>(timing: RequestTiming | undefined, phase: "auth" | "profile"
 }
 
 /** Returns the active session or null. Never throws. */
-export async function getSession(timing?: RequestTiming): Promise<AppSession | null> {
+export async function getVerifiedSessionClaims(timing?: RequestTiming): Promise<VerifiedSessionClaims | null> {
   // ── Local SQLite dev bypass ──
   if (isLocalDevelopment()) {
     return measure(timing, "auth", async () => {
@@ -87,7 +93,7 @@ export async function getSession(timing?: RequestTiming): Promise<AppSession | n
             : cookieRole === "superadmin"
               ? "superadmin@review-annotation.local"
               : "admin@review-annotation.local";
-        return { userId: devId, email: devEmail, name: null, role: cookieRole };
+        return { userId: devId, email: devEmail, devRole: cookieRole };
       }
       return null;
     });
@@ -98,7 +104,16 @@ export async function getSession(timing?: RequestTiming): Promise<AppSession | n
   const claimsResult = await measure(timing, "auth", () => supabase.auth.getClaims());
   const claims = claimsResult.data?.claims;
   if (claimsResult.error || !claims || !isUuid(claims.sub)) return null;
+  return {
+    userId: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : "",
+  };
+}
 
+export async function getSessionFromClaims(claims: VerifiedSessionClaims, timing?: RequestTiming): Promise<AppSession | null> {
+  if (isLocalDevelopment()) {
+    return claims.devRole ? { userId: claims.userId, email: claims.email, name: null, role: claims.devRole } : null;
+  }
   const profileRows = await measure(timing, "profile", () =>
     db
       .select({
@@ -107,16 +122,22 @@ export async function getSession(timing?: RequestTiming): Promise<AppSession | n
         role: profiles.role,
       })
       .from(profiles)
-      .where(eq(profiles.id, claims.sub))
+      .where(eq(profiles.id, claims.userId))
   ) as ProfileSessionRow[];
   const [profile] = profileRows;
   if (!profile) return null;
   return {
-    userId: claims.sub,
+    userId: claims.userId,
     email: profile.email,
     name: (profile.name as string | null) ?? null,
     role: resolveEffectiveRole(profile.role, profile.email),
   };
+}
+
+/** Returns the active session or null. Never throws. */
+export async function getSession(timing?: RequestTiming): Promise<AppSession | null> {
+  const claims = await getVerifiedSessionClaims(timing);
+  return claims ? getSessionFromClaims(claims, timing) : null;
 }
 
 /** Throws 401-equivalent (returns null) if no session - caller decides what to do. */

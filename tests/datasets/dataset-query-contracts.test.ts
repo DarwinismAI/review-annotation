@@ -38,7 +38,8 @@ assert.doesNotMatch(rubricsRoute, /Promise\.all/);
 assert.doesNotMatch(rubricsRoute, /db\.select\(\)\.from\(rubrics\)/);
 assert.match(rubricsRoute, /leftJoin\(rubricCriteria/);
 
-assert.match(taskGroupsRoute, /GET\s*=\s*requireAnnotator\(async \(_req,\s*session,\s*context\)/);
+assert.match(taskGroupsRoute, /GET\s*=\s*requireAnnotatorRead\(async \(_req,\s*claims,\s*context\)/);
 assert.match(taskGroupsRoute, /context\.timing\.measure\("sql"/);
-assert.match(taskGroupsRoute, /allMetricIds/);
-assert.match(taskGroupsRoute, /inArray/);
+assert.match(taskGroupsRoute, /metricLabels/);
+assert.doesNotMatch(taskGroupsRoute, /allMetricIds/);
+assert.doesNotMatch(taskGroupsRoute, /inArray/);

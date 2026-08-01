@@ -18,7 +18,7 @@ assert.match(serverSource, /claims\.sub/);
 assert.match(serverSource, /isUuid/);
 assert.match(serverSource, /db\s*\.\s*select\(/);
 assert.match(serverSource, /from\(profiles\)/);
-assert.match(serverSource, /eq\(profiles\.id,\s*claims\.sub\)/);
+assert.match(serverSource, /eq\(profiles\.id,\s*claims\.userId\)/);
 assert.match(serverSource, /if \(!profile\) return null/);
 assert.match(serverSource, /resolveEffectiveRole\(profile\.role,\s*profile\.email\)/);
 

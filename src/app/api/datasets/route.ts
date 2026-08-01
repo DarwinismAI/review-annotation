@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { annotationMetrics, datasetImports, datasetRows, datasets } from "@/db/datasets";
 import { rubricCriteria, rubrics } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-middleware";
+import { requireAdmin, requireAdminRead } from "@/lib/auth-middleware";
 import { rowsFromResult } from "@/lib/datasets/admin-row-query";
 import {
   computeRequiredAppendFields,
@@ -123,7 +123,7 @@ async function getDatasetMetricsFromRubrics(domain: string): Promise<MetricConfi
   }));
 }
 
-export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
+export const GET = requireAdminRead(async (req, _claims, context) => {
   const { searchParams } = new URL(req.url);
   const page = Math.max(Number(searchParams.get("page") ?? 1) || 1, 1);
   const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize") ?? 50) || 50, 1), 200);

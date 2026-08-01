@@ -17,6 +17,8 @@ import "./migration-workflow-contract.test";
 import "./auth-fast-path.test";
 import "./request-timing.test";
 import "./navigation-benchmark-contract.test";
+import "./read-auth-flow.test";
+import "./read-auth-parallel-contract.test";
 import "./dataset-query-contracts.test";
 import "./local-db-execute.test";
 import "./admin-row-navigation.test";

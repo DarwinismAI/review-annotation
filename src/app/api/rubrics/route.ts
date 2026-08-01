@@ -6,7 +6,7 @@ import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
 import * as schema from "@/db/schema";
 import { db } from "@/db/client";
 import { rubricCriteria, rubrics } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-middleware";
+import { requireAdmin, requireAdminRead } from "@/lib/auth-middleware";
 import { isDomainKey } from "@/lib/labels";
 import { toMetricResponse } from "@/lib/rubric-metric-adapter";
 import { defaultPassFailScale, isPassFailScale, type PassFailScaleItem } from "@/lib/rubrics/pass-fail-scale";
@@ -68,7 +68,7 @@ function normalizeMetricInput(body: MetricBody) {
 }
 
 /** GET /api/rubrics - list metrics with their single internal criterion */
-export const GET = requireAdmin(async (req: NextRequest, _session, context) => {
+export const GET = requireAdminRead(async (req, _claims, context) => {
   const { searchParams } = new URL(req.url);
   const domain = searchParams.get("domain");
 
