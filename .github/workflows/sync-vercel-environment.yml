@@ -1,0 +1,139 @@
+name: Sync Vercel environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+jobs:
+  sync-vercel-environment:
+    name: Sync Vercel production env (${{ inputs.target }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    env:
+      TARGET: ${{ inputs.target }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_DEV_PROJECT_ID: ${{ secrets.VERCEL_DEV_PROJECT_ID }}
+      VERCEL_PROD_PROJECT_ID: ${{ secrets.VERCEL_PROD_PROJECT_ID }}
+      DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      DEV_POSTGRES_URL: ${{ secrets.DEV_POSTGRES_URL }}
+      PROD_POSTGRES_URL: ${{ secrets.PROD_POSTGRES_URL }}
+      DEV_NEXT_PUBLIC_APP_URL: ${{ secrets.DEV_NEXT_PUBLIC_APP_URL }}
+      PROD_NEXT_PUBLIC_APP_URL: ${{ secrets.PROD_NEXT_PUBLIC_APP_URL }}
+      DEV_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_NEXT_PUBLIC_SUPABASE_URL }}
+      PROD_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_URL }}
+      DEV_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.DEV_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      PROD_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      DEV_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+      PROD_SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+      DEV_SUPABASE_ANON_KEY: ${{ secrets.DEV_SUPABASE_ANON_KEY }}
+      PROD_SUPABASE_ANON_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY }}
+      DEV_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+      PROD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+      DEV_SUPABASE_SECRET_KEY: ${{ secrets.DEV_SUPABASE_SECRET_KEY }}
+      PROD_SUPABASE_SECRET_KEY: ${{ secrets.PROD_SUPABASE_SECRET_KEY }}
+      DEV_SUPERADMIN_EMAILS: ${{ secrets.DEV_SUPERADMIN_EMAILS }}
+      PROD_SUPERADMIN_EMAILS: ${{ secrets.PROD_SUPERADMIN_EMAILS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Sync Vercel production env (${{ inputs.target }})
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'rm -rf .vercel' EXIT
+
+          if [ "$TARGET" = "dev" ]; then
+            VERCEL_PROJECT_ID="$VERCEL_DEV_PROJECT_ID"
+            DATABASE_URL_VALUE="$DEV_DATABASE_URL"
+            POSTGRES_URL_VALUE="$DEV_POSTGRES_URL"
+            NEXT_PUBLIC_APP_URL_VALUE="$DEV_NEXT_PUBLIC_APP_URL"
+            NEXT_PUBLIC_SUPABASE_URL_VALUE="$DEV_NEXT_PUBLIC_SUPABASE_URL"
+            NEXT_PUBLIC_SUPABASE_ANON_KEY_VALUE="$DEV_NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            SUPABASE_URL_VALUE="$DEV_SUPABASE_URL"
+            SUPABASE_ANON_KEY_VALUE="$DEV_SUPABASE_ANON_KEY"
+            SUPABASE_SERVICE_ROLE_KEY_VALUE="$DEV_SUPABASE_SERVICE_ROLE_KEY"
+            SUPABASE_SECRET_KEY_VALUE="$DEV_SUPABASE_SECRET_KEY"
+            SUPERADMIN_EMAILS_VALUE="$DEV_SUPERADMIN_EMAILS"
+          else
+            VERCEL_PROJECT_ID="$VERCEL_PROD_PROJECT_ID"
+            DATABASE_URL_VALUE="$PROD_DATABASE_URL"
+            POSTGRES_URL_VALUE="$PROD_POSTGRES_URL"
+            NEXT_PUBLIC_APP_URL_VALUE="$PROD_NEXT_PUBLIC_APP_URL"
+            NEXT_PUBLIC_SUPABASE_URL_VALUE="$PROD_NEXT_PUBLIC_SUPABASE_URL"
+            NEXT_PUBLIC_SUPABASE_ANON_KEY_VALUE="$PROD_NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            SUPABASE_URL_VALUE="$PROD_SUPABASE_URL"
+            SUPABASE_ANON_KEY_VALUE="$PROD_SUPABASE_ANON_KEY"
+            SUPABASE_SERVICE_ROLE_KEY_VALUE="$PROD_SUPABASE_SERVICE_ROLE_KEY"
+            SUPABASE_SECRET_KEY_VALUE="$PROD_SUPABASE_SECRET_KEY"
+            SUPERADMIN_EMAILS_VALUE="$PROD_SUPERADMIN_EMAILS"
+          fi
+
+          required_vars=(
+            VERCEL_TOKEN
+            VERCEL_ORG_ID
+            VERCEL_PROJECT_ID
+            DATABASE_URL_VALUE
+            POSTGRES_URL_VALUE
+            NEXT_PUBLIC_APP_URL_VALUE
+            NEXT_PUBLIC_SUPABASE_URL_VALUE
+            NEXT_PUBLIC_SUPABASE_ANON_KEY_VALUE
+            SUPABASE_URL_VALUE
+            SUPABASE_ANON_KEY_VALUE
+            SUPABASE_SERVICE_ROLE_KEY_VALUE
+            SUPABASE_SECRET_KEY_VALUE
+            SUPERADMIN_EMAILS_VALUE
+          )
+
+          for var_name in "${required_vars[@]}"; do
+            if [ -z "${!var_name}" ]; then
+              printf '%s\n' "::error::Required secret is empty: $var_name" >&2
+              exit 1
+            fi
+          done
+
+          mkdir -p .vercel
+          cat > .vercel/project.json <<PROJECT_JSON
+          {
+            "projectId": "$VERCEL_PROJECT_ID",
+            "orgId": "$VERCEL_ORG_ID"
+          }
+          PROJECT_JSON
+
+          sync_env() {
+            local name="$1"
+            local value="$2"
+
+            printf '%s' "$value" |
+              pnpm dlx vercel@58.4.4 env add "$name" production --force --sensitive --yes --token "$VERCEL_TOKEN"
+          }
+
+          sync_env "DATABASE_URL" "$DATABASE_URL_VALUE"
+          sync_env "POSTGRES_URL" "$POSTGRES_URL_VALUE"
+          sync_env "NEXT_PUBLIC_APP_URL" "$NEXT_PUBLIC_APP_URL_VALUE"
+          sync_env "NEXT_PUBLIC_SUPABASE_URL" "$NEXT_PUBLIC_SUPABASE_URL_VALUE"
+          sync_env "NEXT_PUBLIC_SUPABASE_ANON_KEY" "$NEXT_PUBLIC_SUPABASE_ANON_KEY_VALUE"
+          sync_env "SUPABASE_URL" "$SUPABASE_URL_VALUE"
+          sync_env "SUPABASE_ANON_KEY" "$SUPABASE_ANON_KEY_VALUE"
+          sync_env "SUPABASE_SERVICE_ROLE_KEY" "$SUPABASE_SERVICE_ROLE_KEY_VALUE"
+          sync_env "SUPABASE_SECRET_KEY" "$SUPABASE_SECRET_KEY_VALUE"
+          sync_env "SUPERADMIN_EMAILS" "$SUPERADMIN_EMAILS_VALUE"
