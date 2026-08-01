@@ -8,16 +8,47 @@ const pgDatasets = readFileSync("src/db/datasets.ts", "utf8");
 const sqliteDatasets = readFileSync("src/db/datasets.sqlite.ts", "utf8");
 const runner = readFileSync("tests/datasets/run.ts", "utf8");
 
+function between(start: string, end: string): string {
+  const startIndex = workflow.indexOf(start);
+  assert.notEqual(startIndex, -1, `missing start marker: ${start}`);
+  const endIndex = workflow.indexOf(end, startIndex);
+  assert.notEqual(endIndex, -1, `missing end marker: ${end}`);
+  return workflow.slice(startIndex, endIndex);
+}
+
+function workflowStep(name: string): string {
+  const marker = `      - name: ${name}\n`;
+  const startIndex = workflow.indexOf(marker);
+  assert.notEqual(startIndex, -1, `missing step: ${name}`);
+  const nextIndex = workflow.indexOf("\n      - ", startIndex + marker.length);
+  return workflow.slice(startIndex, nextIndex === -1 ? workflow.length : nextIndex);
+}
+
 assert.match(workflow, /^on:\n  workflow_dispatch:\n/m);
 assert.doesNotMatch(workflow, /push:|pull_request:/);
-assert.match(workflow, /TARGET: \$\{\{ inputs\.target \}\}/);
-assert.match(workflow, /DEV_DATABASE_URL: \$\{\{ secrets\.DEV_DATABASE_URL \}\}/);
-assert.match(workflow, /DEV_POSTGRES_URL: \$\{\{ secrets\.DEV_POSTGRES_URL \}\}/);
-assert.match(workflow, /PROD_DATABASE_URL: \$\{\{ secrets\.PROD_DATABASE_URL \}\}/);
-assert.match(workflow, /PROD_POSTGRES_URL: \$\{\{ secrets\.PROD_POSTGRES_URL \}\}/);
-assert.match(workflow, /database_url="\$\{DEV_DATABASE_URL:-\$\{DEV_POSTGRES_URL:-\}\}"/);
-assert.match(workflow, /database_url="\$\{PROD_DATABASE_URL:-\$\{PROD_POSTGRES_URL:-\}\}"/);
-assert.match(workflow, /\[ -z "\$database_url" \]/);
+
+const migrationJobHeader = between("  apply-annotation-queue-migration:\n", "    steps:\n");
+assert.doesNotMatch(migrationJobHeader, /\n    env:/);
+assert.doesNotMatch(migrationJobHeader, /secrets\./);
+
+const migrationDevStep = workflowStep("Apply annotation queue migration (dev)");
+assert.match(migrationDevStep, /if: inputs\.target == 'dev'/);
+assert.match(migrationDevStep, /DATABASE_URL_SECRET: \$\{\{ secrets\.DEV_DATABASE_URL \}\}/);
+assert.match(migrationDevStep, /POSTGRES_URL_SECRET: \$\{\{ secrets\.DEV_POSTGRES_URL \}\}/);
+assert.match(migrationDevStep, /database_url="\$\{DATABASE_URL_SECRET:-\$\{POSTGRES_URL_SECRET:-\}\}"/);
+assert.match(migrationDevStep, /\[ -z "\$database_url" \]/);
+assert.match(migrationDevStep, /DATABASE_URL="\$database_url" pnpm exec tsx scripts\/apply-annotation-queue-migration\.ts/);
+assert.doesNotMatch(migrationDevStep, /PROD_|secrets\.PROD_|secrets\.DATABASE_URL|secrets\.POSTGRES_URL|GITHUB_ENV|DATABASE_URL_EOF/);
+
+const migrationProdStep = workflowStep("Apply annotation queue migration (prod)");
+assert.match(migrationProdStep, /if: inputs\.target == 'prod'/);
+assert.match(migrationProdStep, /DATABASE_URL_SECRET: \$\{\{ secrets\.PROD_DATABASE_URL \}\}/);
+assert.match(migrationProdStep, /POSTGRES_URL_SECRET: \$\{\{ secrets\.PROD_POSTGRES_URL \}\}/);
+assert.match(migrationProdStep, /database_url="\$\{DATABASE_URL_SECRET:-\$\{POSTGRES_URL_SECRET:-\}\}"/);
+assert.match(migrationProdStep, /\[ -z "\$database_url" \]/);
+assert.match(migrationProdStep, /DATABASE_URL="\$database_url" pnpm exec tsx scripts\/apply-annotation-queue-migration\.ts/);
+assert.doesNotMatch(migrationProdStep, /DEV_|secrets\.DEV_|secrets\.DATABASE_URL|secrets\.POSTGRES_URL|GITHUB_ENV|DATABASE_URL_EOF/);
+
 assert.doesNotMatch(workflow, /secrets\.DATABASE_URL/);
 assert.doesNotMatch(workflow, /secrets\.POSTGRES_URL/);
 assert.match(workflow, /pnpm exec tsx scripts\/apply-annotation-queue-migration\.ts/);
