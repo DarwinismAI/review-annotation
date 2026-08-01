@@ -10,6 +10,9 @@ type DashboardSnapshotRow = {
   metricTotal: number | string;
   readyDatasets: number | string;
   importingDatasets: number | string;
+};
+
+type ActiveAnnotatorsRow = {
   activeAnnotators: number | string;
 };
 
@@ -36,7 +39,7 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
       ? sql`and lower(p.email) not in (${sql.join(bootstrapSuperadminEmails.map((email) => sql`${email}`), sql`, `)})`
       : sql``;
 
-  const queryGlobalTotals = async () =>
+  const queryDatasetTotals = async () =>
     await db.execute(sql`
       with dataset_status_totals as (
         select
@@ -51,18 +54,7 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
           (select count(*) from dataset_rows) as row_total,
           (select count(*) from annotation_metrics) as metric_total,
           dst.ready_datasets as ready_datasets,
-          dst.importing_datasets as importing_datasets,
-          (
-            select count(*)
-            from profiles p
-            where p.role in ('annotator', 'expert')
-            ${bootstrapSuperadminExclusion}
-            and exists (
-              select 1
-              from expert_profiles ep
-              where ep.user_id = p.id and ep.status = 'active'
-            )
-          ) as active_annotators
+          dst.importing_datasets as importing_datasets
         from dataset_status_totals dst
       )
       select
@@ -70,9 +62,21 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
         row_total as "rowTotal",
         metric_total as "metricTotal",
         ready_datasets as "readyDatasets",
-        importing_datasets as "importingDatasets",
-        active_annotators as "activeAnnotators"
+        importing_datasets as "importingDatasets"
       from totals
+    `);
+
+  const queryActiveAnnotators = async () =>
+    await db.execute(sql`
+      select count(*) as "activeAnnotators"
+      from profiles p
+      where p.role in ('annotator', 'expert')
+      ${bootstrapSuperadminExclusion}
+      and exists (
+        select 1
+        from expert_profiles ep
+        where ep.user_id = p.id and ep.status = 'active'
+      )
     `);
 
   const queryRecentDatasets = async () =>
@@ -120,15 +124,17 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
       left join latest_imports li on li.dataset_id = rd.id
     `);
 
-  // Dashboard-only read model: totals and recent rows can come from two concurrent snapshots;
+  // Dashboard-only read model: totals, active annotators, and recent rows can come from concurrent snapshots;
   // no write path or mutation decision depends on these display aggregates.
-  const [globalTotalsResult, recentDatasetsResult] = await context.timing.measure("sql", () =>
+  const [datasetTotalsResult, activeAnnotatorsResult, recentDatasetsResult] = await context.timing.measure("sql", () =>
     Promise.all([
-      queryGlobalTotals(),
+      queryDatasetTotals(),
+      queryActiveAnnotators(),
       queryRecentDatasets(),
     ]),
   );
-  const totals = rowsFromResult<DashboardSnapshotRow>(globalTotalsResult)[0];
+  const totals = rowsFromResult<DashboardSnapshotRow>(datasetTotalsResult)[0];
+  const activeAnnotators = rowsFromResult<ActiveAnnotatorsRow>(activeAnnotatorsResult)[0];
   const recentDatasets = rowsFromResult<RecentDatasetRow>(recentDatasetsResult);
 
   return NextResponse.json({
@@ -138,7 +144,7 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
       metrics: Number(totals?.metricTotal ?? 0),
       readyDatasets: Number(totals?.readyDatasets ?? 0),
       importingDatasets: Number(totals?.importingDatasets ?? 0),
-      activeAnnotators: Number(totals?.activeAnnotators ?? 0),
+      activeAnnotators: Number(activeAnnotators?.activeAnnotators ?? 0),
     },
     recentDatasets: recentDatasets
       .filter((dataset) => dataset.id)
