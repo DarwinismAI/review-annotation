@@ -10,7 +10,16 @@ const runner = readFileSync("tests/datasets/run.ts", "utf8");
 
 assert.match(workflow, /^on:\n  workflow_dispatch:\n/m);
 assert.doesNotMatch(workflow, /push:|pull_request:/);
-assert.match(workflow, /PROD_DATABASE_URL \|\| secrets\.DATABASE_URL \|\| secrets\.PROD_POSTGRES_URL \|\| secrets\.POSTGRES_URL/);
+assert.match(workflow, /TARGET: \$\{\{ inputs\.target \}\}/);
+assert.match(workflow, /DEV_DATABASE_URL: \$\{\{ secrets\.DEV_DATABASE_URL \}\}/);
+assert.match(workflow, /DEV_POSTGRES_URL: \$\{\{ secrets\.DEV_POSTGRES_URL \}\}/);
+assert.match(workflow, /PROD_DATABASE_URL: \$\{\{ secrets\.PROD_DATABASE_URL \}\}/);
+assert.match(workflow, /PROD_POSTGRES_URL: \$\{\{ secrets\.PROD_POSTGRES_URL \}\}/);
+assert.match(workflow, /database_url="\$\{DEV_DATABASE_URL:-\$\{DEV_POSTGRES_URL:-\}\}"/);
+assert.match(workflow, /database_url="\$\{PROD_DATABASE_URL:-\$\{PROD_POSTGRES_URL:-\}\}"/);
+assert.match(workflow, /\[ -z "\$database_url" \]/);
+assert.doesNotMatch(workflow, /secrets\.DATABASE_URL/);
+assert.doesNotMatch(workflow, /secrets\.POSTGRES_URL/);
 assert.match(workflow, /pnpm exec tsx scripts\/apply-annotation-queue-migration\.ts/);
 
 assert.match(script, /PROD_DATABASE_URL/);
