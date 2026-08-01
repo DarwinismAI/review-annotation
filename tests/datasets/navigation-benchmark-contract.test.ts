@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { selectServerTimingHeader } from "../../scripts/benchmark-timing";
 
-const benchmarkSource = readFileSync("scripts/benchmark-navigation-performance.ts", "utf8");
+const standardOnly = new Headers({ "server-timing": "total;dur=12" });
+assert.equal(selectServerTimingHeader(standardOnly), "total;dur=12");
 
-assert.match(benchmarkSource, /APP_SERVER_TIMING_HEADER/);
-assert.match(benchmarkSource, /response\.headers\.get\("server-timing"\)/);
-assert.match(benchmarkSource, /response\.headers\.get\(APP_SERVER_TIMING_HEADER\)/);
-assert.match(benchmarkSource, /parseServerTiming\(response\.headers\.get\("server-timing"\) \?\? response\.headers\.get\(APP_SERVER_TIMING_HEADER\)\)/);
-assert.doesNotMatch(benchmarkSource, /serverTimingSource/);
+const fallbackOnly = new Headers({ "x-app-server-timing": "total;dur=34" });
+assert.equal(selectServerTimingHeader(fallbackOnly), "total;dur=34");
+
+const bothPresent = new Headers({
+  "server-timing": "total;dur=56",
+  "x-app-server-timing": "total;dur=78",
+});
+assert.equal(selectServerTimingHeader(bothPresent), "total;dur=56");
+
+const neitherPresent = new Headers();
+assert.equal(selectServerTimingHeader(neitherPresent), null);
