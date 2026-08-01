@@ -7,6 +7,7 @@ import "./row-export.test";
 import "./task-groups.test";
 import "./adjudication.test";
 import "./import-jobs.test";
+import "./import-stale-recovery.test";
 import "./json-resource.test";
 import "./fast-resource-contract.test";
 import "./api-list-contracts.test";
