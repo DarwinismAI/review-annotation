@@ -35,13 +35,20 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
 
   const queryDashboard = async () =>
     await db.execute(sql`
-      with totals as (
+      with dataset_status_totals as (
         select
-          (select count(*) from datasets) as dataset_count,
+          count(*) as dataset_count,
+          coalesce(sum(case when status = 'ready' then 1 else 0 end), 0) as ready_datasets,
+          coalesce(sum(case when status = 'importing' then 1 else 0 end), 0) as importing_datasets
+        from datasets
+      ),
+      totals as (
+        select
+          dst.dataset_count as dataset_count,
           (select count(*) from dataset_rows) as row_total,
           (select count(*) from annotation_metrics) as metric_total,
-          (select count(*) from datasets where status = 'ready') as ready_datasets,
-          (select count(*) from datasets where status = 'importing') as importing_datasets,
+          dst.ready_datasets as ready_datasets,
+          dst.importing_datasets as importing_datasets,
           (
             select count(distinct p.id)
             from profiles p
@@ -49,6 +56,7 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
             where ep.status = 'active' and p.role in ('annotator', 'expert')
             ${bootstrapSuperadminExclusion}
           ) as active_annotators
+        from dataset_status_totals dst
       ),
       recent_datasets as (
         select id, name, domain, status, created_at
