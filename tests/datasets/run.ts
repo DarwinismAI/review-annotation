@@ -5,6 +5,7 @@ import "./roles.test";
 import "./rubric-passfail.test";
 import "./row-export.test";
 import "./task-groups.test";
+import "./task-groups-sqlite.test";
 import "./adjudication.test";
 import "./import-jobs.test";
 import "./import-stale-recovery.test";

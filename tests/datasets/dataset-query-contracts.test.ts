@@ -5,6 +5,7 @@ const datasetsRoute = readFileSync("src/app/api/datasets/route.ts", "utf8");
 const membersRoute = readFileSync("src/app/api/admin/members/route.ts", "utf8");
 const rubricsRoute = readFileSync("src/app/api/rubrics/route.ts", "utf8");
 const taskGroupsRoute = readFileSync("src/app/api/annotator/task-groups/route.ts", "utf8");
+const taskGroupsRead = readFileSync("src/lib/datasets/task-groups-read.ts", "utf8");
 const dashboardRoutePath = "src/app/api/admin/dashboard/route.ts";
 
 assert.match(datasetsRoute, /db\.execute\(\s*sql`[\s\S]*page_datasets/i);
@@ -40,6 +41,8 @@ assert.match(rubricsRoute, /leftJoin\(rubricCriteria/);
 
 assert.match(taskGroupsRoute, /GET\s*=\s*requireAnnotatorRead\(async \(_req,\s*claims,\s*context\)/);
 assert.match(taskGroupsRoute, /context\.timing\.measure\("sql"/);
-assert.match(taskGroupsRoute, /metricLabels/);
-assert.doesNotMatch(taskGroupsRoute, /allMetricIds/);
-assert.doesNotMatch(taskGroupsRoute, /inArray/);
+assert.match(taskGroupsRoute, /listTaskGroupsForAnnotator\(db,\s*claims\.user\.id\)/);
+assert.match(taskGroupsRead, /metricLabels/);
+assert.match(taskGroupsRead, /jsonb_array_elements_text/);
+assert.match(taskGroupsRead, /allMetricIds/);
+assert.match(taskGroupsRead, /inArray/);

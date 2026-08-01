@@ -8,6 +8,7 @@ const datasetsRoute = readFileSync("src/app/api/datasets/route.ts", "utf8");
 const membersRoute = readFileSync("src/app/api/admin/members/route.ts", "utf8");
 const rubricsRoute = readFileSync("src/app/api/rubrics/route.ts", "utf8");
 const taskGroupsRoute = readFileSync("src/app/api/annotator/task-groups/route.ts", "utf8");
+const taskGroupsRead = readFileSync("src/lib/datasets/task-groups-read.ts", "utf8");
 
 assert.match(authMiddleware, /export function requireAdminRead/);
 assert.match(authMiddleware, /export function requireAnnotatorRead/);
@@ -34,7 +35,8 @@ assert.match(rubricsRoute, /GET\s*=\s*requireAdminRead/);
 assert.match(taskGroupsRoute, /GET\s*=\s*requireAnnotatorRead/);
 
 assert.match(membersRoute, /await context\.session/);
-assert.match(taskGroupsRoute, /metricLabels/);
-assert.doesNotMatch(taskGroupsRoute, /const allMetricIds/);
-assert.doesNotMatch(taskGroupsRoute, /inArray/);
-assert.doesNotMatch(taskGroupsRoute, /await db\.select\(\{ id: annotationMetrics\.id, label: annotationMetrics\.label \}\)/);
+assert.match(taskGroupsRoute, /listTaskGroupsForAnnotator/);
+assert.match(taskGroupsRead, /metricLabels/);
+assert.match(taskGroupsRead, /jsonb_array_elements_text/);
+assert.match(taskGroupsRead, /isSqlite/);
+assert.match(taskGroupsRead, /inArray/);

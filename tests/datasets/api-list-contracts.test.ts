@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const datasets = readFileSync("src/app/api/datasets/route.ts", "utf8");
 const taskGroups = readFileSync("src/app/api/annotator/task-groups/route.ts", "utf8");
+const taskGroupsRead = readFileSync("src/lib/datasets/task-groups-read.ts", "utf8");
 const annotatorTasks = readFileSync("src/app/api/annotator/tasks/route.ts", "utf8");
 const datasetRows = readFileSync("src/app/api/datasets/[id]/rows/route.ts", "utf8");
 const rubrics = readFileSync("src/app/api/rubrics/route.ts", "utf8");
@@ -20,9 +21,10 @@ assert.doesNotMatch(datasets, /Promise\.all\(\[[\s\S]*?db\s*\.select\(\{\s*total
 assert.doesNotMatch(datasets, /rawJson:\s*datasetRows\.rawJson/);
 
 assert.doesNotMatch(taskGroups, /buildTaskGroups/);
-assert.match(taskGroups, /\.groupBy\(/);
-assert.match(taskGroups, /totalCount/);
-assert.doesNotMatch(taskGroups, /rowId:\s*annotationAssignments\.rowId/);
+assert.match(taskGroups, /listTaskGroupsForAnnotator/);
+assert.match(taskGroupsRead, /\.groupBy\(/);
+assert.match(taskGroupsRead, /totalCount/);
+assert.doesNotMatch(taskGroupsRead, /rowId:\s*annotationAssignments\.rowId/);
 
 assert.doesNotMatch(annotatorTasks, /rawJson:\s*datasetRows\.rawJson/);
 assert.match(annotatorTasks, /listFields:\s*\{\}/);
