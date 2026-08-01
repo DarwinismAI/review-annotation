@@ -50,11 +50,15 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
           dst.ready_datasets as ready_datasets,
           dst.importing_datasets as importing_datasets,
           (
-            select count(distinct p.id)
+            select count(*)
             from profiles p
-            inner join expert_profiles ep on ep.user_id = p.id
-            where ep.status = 'active' and p.role in ('annotator', 'expert')
+            where p.role in ('annotator', 'expert')
             ${bootstrapSuperadminExclusion}
+            and exists (
+              select 1
+              from expert_profiles ep
+              where ep.user_id = p.id and ep.status = 'active'
+            )
           ) as active_annotators
         from dataset_status_totals dst
       ),
