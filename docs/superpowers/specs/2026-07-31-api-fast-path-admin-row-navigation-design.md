@@ -1,7 +1,7 @@
 # API Fast Path And Admin Row Navigation Design
 
-**Date:** 2026-07-31  
-**Status:** Approved design  
+**Date:** 2026-07-31
+**Status:** Approved design
 **Scope:** Review Annotation API latency, reviewed findings, and admin row navigation
 
 ## Context
@@ -256,4 +256,3 @@ If a hot API remains above 150 ms after region, auth, and query fixes, the next 
 - Query response contracts remain backward-compatible during rollout.
 - Security migrations are additive and must not be rolled back by disabling RLS.
 - UI navigation can be reverted without changing persisted adjudication data.
-
