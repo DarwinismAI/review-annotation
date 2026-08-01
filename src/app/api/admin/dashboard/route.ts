@@ -5,6 +5,15 @@ import { requireAdminRead } from "@/lib/auth-middleware";
 import { rowsFromResult } from "@/lib/datasets/admin-row-query";
 
 type DashboardSnapshotRow = {
+  datasetCount: number | string;
+  rowTotal: number | string;
+  metricTotal: number | string;
+  readyDatasets: number | string;
+  importingDatasets: number | string;
+  activeAnnotators: number | string;
+};
+
+type RecentDatasetRow = {
   id: string | null;
   name: string | null;
   domain: string | null;
@@ -13,12 +22,6 @@ type DashboardSnapshotRow = {
   rowCount: number | string | null;
   metricCount: number | string | null;
   latestImport: string | null;
-  datasetCount: number | string;
-  rowTotal: number | string;
-  metricTotal: number | string;
-  readyDatasets: number | string;
-  importingDatasets: number | string;
-  activeAnnotators: number | string;
 };
 
 export const GET = requireAdminRead(async (req, _claims, context) => {
@@ -33,7 +36,7 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
       ? sql`and lower(p.email) not in (${sql.join(bootstrapSuperadminEmails.map((email) => sql`${email}`), sql`, `)})`
       : sql``;
 
-  const queryDashboard = async () =>
+  const queryGlobalTotals = async () =>
     await db.execute(sql`
       with dataset_status_totals as (
         select
@@ -61,7 +64,20 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
             )
           ) as active_annotators
         from dataset_status_totals dst
-      ),
+      )
+      select
+        dataset_count as "datasetCount",
+        row_total as "rowTotal",
+        metric_total as "metricTotal",
+        ready_datasets as "readyDatasets",
+        importing_datasets as "importingDatasets",
+        active_annotators as "activeAnnotators"
+      from totals
+    `);
+
+  const queryRecentDatasets = async () =>
+    await db.execute(sql`
+      with
       recent_datasets as (
         select id, name, domain, status, created_at
         from datasets
@@ -97,34 +113,34 @@ export const GET = requireAdminRead(async (req, _claims, context) => {
         rd.created_at as "createdAt",
         coalesce(prc.total, 0) as "rowCount",
         coalesce(pmc.total, 0) as "metricCount",
-        li.source_filename as "latestImport",
-        t.dataset_count as "datasetCount",
-        t.row_total as "rowTotal",
-        t.metric_total as "metricTotal",
-        t.ready_datasets as "readyDatasets",
-        t.importing_datasets as "importingDatasets",
-        t.active_annotators as "activeAnnotators"
-      from totals t
-      left join recent_datasets rd on true
+        li.source_filename as "latestImport"
+      from recent_datasets rd
       left join page_row_counts prc on prc.dataset_id = rd.id
       left join page_metric_counts pmc on pmc.dataset_id = rd.id
       left join latest_imports li on li.dataset_id = rd.id
     `);
-  const queryRows = rowsFromResult<DashboardSnapshotRow>(
-    await context.timing.measure("sql", queryDashboard),
+
+  // Dashboard-only read model: totals and recent rows can come from two concurrent snapshots;
+  // no write path or mutation decision depends on these display aggregates.
+  const [globalTotalsResult, recentDatasetsResult] = await context.timing.measure("sql", () =>
+    Promise.all([
+      queryGlobalTotals(),
+      queryRecentDatasets(),
+    ]),
   );
-  const first = queryRows[0];
+  const totals = rowsFromResult<DashboardSnapshotRow>(globalTotalsResult)[0];
+  const recentDatasets = rowsFromResult<RecentDatasetRow>(recentDatasetsResult);
 
   return NextResponse.json({
     totals: {
-      datasets: Number(first?.datasetCount ?? 0),
-      rows: Number(first?.rowTotal ?? 0),
-      metrics: Number(first?.metricTotal ?? 0),
-      readyDatasets: Number(first?.readyDatasets ?? 0),
-      importingDatasets: Number(first?.importingDatasets ?? 0),
-      activeAnnotators: Number(first?.activeAnnotators ?? 0),
+      datasets: Number(totals?.datasetCount ?? 0),
+      rows: Number(totals?.rowTotal ?? 0),
+      metrics: Number(totals?.metricTotal ?? 0),
+      readyDatasets: Number(totals?.readyDatasets ?? 0),
+      importingDatasets: Number(totals?.importingDatasets ?? 0),
+      activeAnnotators: Number(totals?.activeAnnotators ?? 0),
     },
-    recentDatasets: queryRows
+    recentDatasets: recentDatasets
       .filter((dataset) => dataset.id)
       .map((dataset) => ({
         id: dataset.id,
