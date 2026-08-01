@@ -27,7 +27,9 @@ type Handler = (
 ) => Promise<NextResponse>;
 
 function withTiming(response: NextResponse, timing: RequestTiming) {
-  response.headers.set("Server-Timing", timing.header());
+  const header = timing.header();
+  response.headers.set("Server-Timing", header);
+  response.headers.set("X-App-Server-Timing", header);
   return response;
 }
 

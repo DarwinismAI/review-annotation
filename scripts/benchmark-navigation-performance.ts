@@ -26,6 +26,7 @@ interface TimingSummary {
 const DEFAULT_RUNS = 10;
 const WARM_P95_TARGET_MS = Number(process.env.NAV_BENCHMARK_TARGET_MS ?? 150);
 const BASE_URL = process.env.BENCHMARK_BASE_URL ?? process.env.BASE_URL ?? process.env.E2E_BASE_URL;
+const APP_SERVER_TIMING_HEADER = "x-app-server-timing";
 
 function argValue(name: string): string | null {
   const prefix = `${name}=`;
@@ -145,7 +146,7 @@ async function requestJson(baseUrl: string, endpoint: EndpointSpec, jars: Record
   return {
     durationMs,
     bytes: Buffer.byteLength(text),
-    serverTiming: parseServerTiming(response.headers.get("server-timing")),
+    serverTiming: parseServerTiming(response.headers.get("server-timing") ?? response.headers.get(APP_SERVER_TIMING_HEADER)),
   };
 }
 

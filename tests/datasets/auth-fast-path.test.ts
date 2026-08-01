@@ -24,5 +24,9 @@ assert.match(serverSource, /resolveEffectiveRole\(profile\.role,\s*profile\.emai
 
 assert.match(authSource, /getSession/);
 assert.match(middlewareSource, /Server-Timing/);
+assert.match(middlewareSource, /X-App-Server-Timing/);
+assert.match(middlewareSource, /const header = timing\.header\(\)/);
+assert.match(middlewareSource, /headers\.set\("Server-Timing", header\)/);
+assert.match(middlewareSource, /headers\.set\("X-App-Server-Timing", header\)/);
 assert.match(middlewareSource, /createRequestTiming/);
 assert.doesNotMatch(middlewareSource, /auth\.api\.getSession/);
