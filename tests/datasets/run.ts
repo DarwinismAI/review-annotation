@@ -12,6 +12,7 @@ import "./fast-resource-contract.test";
 import "./api-list-contracts.test";
 import "./annotation-queue-migration.test";
 import "./annotation-adjudication-security.test";
+import "./migration-workflow-contract.test";
 import "./auth-fast-path.test";
 import "./request-timing.test";
 import "./dataset-query-contracts.test";
@@ -22,5 +23,6 @@ import "./dataset-page-state.test";
 import "./admin-row-navigation-ui.test";
 import "./annotation-persistence-verifier.test";
 import "./datasets-route.test";
+import "./vercel-env-sync-workflow-contract.test";
 
 console.log("dataset helper tests passed");
