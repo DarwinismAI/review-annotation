@@ -24,5 +24,6 @@ import "./admin-row-navigation-ui.test";
 import "./annotation-persistence-verifier.test";
 import "./datasets-route.test";
 import "./vercel-env-sync-workflow-contract.test";
+import "./vercel-region-contract.test";
 
 console.log("dataset helper tests passed");
